@@ -1,0 +1,16 @@
+# Root Netlify config — self-contained so no dashboard settings are needed.
+# Netlify reads this from the repo root, builds the app inside frontend/,
+# and publishes the built output. The backend URL is baked in at build time.
+[build]
+  base = "frontend/"
+  command = "npm run build"
+  publish = "frontend/dist/"
+
+[build.environment]
+  VITE_API_URL = "https://bright-fabric-care-api.onrender.com"
+
+# SPA fallback so refresh / deep links work.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
