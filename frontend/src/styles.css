@@ -920,6 +920,25 @@ select {
   }
 }
 
+.section-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* Lets wide tables scroll horizontally inside their own box instead of
+   breaking the page layout on narrow screens. */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-scroll .data-table {
+  min-width: 560px;
+}
+
 /* ---------- Tablet tweaks ---------- */
 @media (max-width: 820px) {
   .stat-grid {
@@ -927,5 +946,79 @@ select {
   }
   .field-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Item cards need real estate for the minus/qty/plus row (48px tap targets) —
+   3 columns get too cramped below ~600px, so drop to 2. */
+@media (max-width: 600px) {
+  .item-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ---------- Phone tweaks ---------- */
+@media (max-width: 480px) {
+  .screen {
+    padding: 12px;
+  }
+
+  .header {
+    flex-wrap: wrap;
+    row-gap: 8px;
+    padding: 10px 14px;
+  }
+  .header h1 {
+    font-size: 16px;
+  }
+  .header .mode-chip {
+    font-size: 12px;
+    padding: 5px 10px;
+  }
+  .btn-logout {
+    padding: 8px 12px;
+    font-size: 14px;
+    min-height: 40px;
+  }
+
+  .tabbar button {
+    font-size: 11px;
+  }
+  .tabbar button .tab-icon {
+    font-size: 18px;
+  }
+
+  .stat-grid {
+    gap: 8px;
+  }
+  .stat-card {
+    padding: 12px;
+  }
+  .stat-card .stat-value {
+    font-size: 20px;
+  }
+  .stat-card .stat-label {
+    font-size: 13px;
+  }
+
+  .split-row {
+    gap: 8px;
+  }
+  .split-card {
+    min-width: 130px;
+    padding: 10px;
+  }
+  .split-card .value {
+    font-size: 17px;
+  }
+
+  .bar-chart {
+    gap: 4px;
+    height: 140px;
+    padding: 0 4px;
+  }
+  .bar-value,
+  .bar-label {
+    font-size: 10px;
   }
 }

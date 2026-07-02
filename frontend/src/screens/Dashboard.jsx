@@ -132,43 +132,42 @@ export default function Dashboard() {
       {data.unpaidOrders.length === 0 ? (
         <p>No unpaid orders 🎉</p>
       ) : (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Customer</th>
-              <th>Block</th>
-              <th>Room</th>
-              <th>Amount</th>
-              <th>Date</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.unpaidOrders.map((o) => (
-              <tr key={o.id}>
-                <td>{o.customer_name || '—'}</td>
-                <td>{o.block || ''}</td>
-                <td>{o.room_no || ''}</td>
-                <td>₹{Number(o.total_amount).toFixed(0)}</td>
-                <td>{fmtDate(o.created_at)}</td>
-                <td>
-                  <button
-                    className="action-btn solid"
-                    onClick={() => markPaid(o.id)}
-                  >
-                    Mark Paid
-                  </button>
-                </td>
+        <div className="table-scroll">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Customer</th>
+                <th>Block</th>
+                <th>Room</th>
+                <th>Amount</th>
+                <th>Date</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.unpaidOrders.map((o) => (
+                <tr key={o.id}>
+                  <td>{o.customer_name || '—'}</td>
+                  <td>{o.block || ''}</td>
+                  <td>{o.room_no || ''}</td>
+                  <td>₹{Number(o.total_amount).toFixed(0)}</td>
+                  <td>{fmtDate(o.created_at)}</td>
+                  <td>
+                    <button
+                      className="action-btn solid"
+                      onClick={() => markPaid(o.id)}
+                    >
+                      Mark Paid
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
-      <div
-        className="section-title"
-        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-      >
+      <div className="section-title section-title-row">
         <span>All-time totals</span>
         <button className="btn-primary" style={{ width: 'auto' }} onClick={exportCsv}>
           Export CSV

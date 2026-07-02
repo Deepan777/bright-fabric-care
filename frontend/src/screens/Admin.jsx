@@ -421,45 +421,47 @@ export default function Admin({ items, onItemsChanged }) {
               </div>
             </div>
 
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Bill No</th>
-                  <th>Customer</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                  <th>Date</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {summaryOrders.map((o) => (
-                  <tr key={o.id}>
-                    <td>{o.bill_number}</td>
-                    <td>{o.customer_name || '—'}</td>
-                    <td>₹{Number(o.total_amount).toFixed(0)}</td>
-                    <td>
-                      <span className={`badge ${o.order_status}`}>
-                        {o.order_status}
-                      </span>{' '}
-                      <span className={`badge ${o.payment_status}`}>
-                        {o.payment_status}
-                      </span>
-                    </td>
-                    <td>{fmtDate(o.created_at)}</td>
-                    <td>
-                      <button
-                        className="btn-danger"
-                        style={{ padding: '8px 12px', minHeight: 36, flex: 'none' }}
-                        onClick={() => setConfirmDeleteOrder(o)}
-                      >
-                        Delete
-                      </button>
-                    </td>
+            <div className="table-scroll">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Bill No</th>
+                    <th>Customer</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                    <th></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {summaryOrders.map((o) => (
+                    <tr key={o.id}>
+                      <td>{o.bill_number}</td>
+                      <td>{o.customer_name || '—'}</td>
+                      <td>₹{Number(o.total_amount).toFixed(0)}</td>
+                      <td>
+                        <span className={`badge ${o.order_status}`}>
+                          {o.order_status}
+                        </span>{' '}
+                        <span className={`badge ${o.payment_status}`}>
+                          {o.payment_status}
+                        </span>
+                      </td>
+                      <td>{fmtDate(o.created_at)}</td>
+                      <td>
+                        <button
+                          className="btn-danger"
+                          style={{ padding: '8px 12px', minHeight: 36, flex: 'none' }}
+                          onClick={() => setConfirmDeleteOrder(o)}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </>
         )}
         {summaryOrders && summaryOrders.length === 0 && (
