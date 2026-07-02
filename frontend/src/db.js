@@ -30,17 +30,28 @@ db.version(1).stores({
   meta: 'key',              // counters + misc local settings
 });
 
-// --- Local bill-number generation (never resets, per-source counter) ---
-// SHOP-0001 for shop, BLOCK-0001 for block collection.
+// --- Local bill-number generation ---
+// Format: BFC<YY>-<NNNN>, e.g. BFC26-0001. The year auto-updates each
+// January and the sequence resets to 0001 for the new year.
+// Shop and Block Collection print on two independent offline tablets, so
+// each source gets its own numeric range within the year (Shop starts at
+// 0001, Block starts at 5001) — this guarantees no two tablets can ever
+// generate the same bill number while offline, while still looking like
+// one clean series to the customer.
+const SOURCE_OFFSET = { shop: 0, block_collection: 5000 };
+
 export async function nextBillNumber(source) {
-  const prefix = source === 'block_collection' ? 'BLOCK' : 'SHOP';
-  const metaKey = source === 'block_collection' ? 'counter_block' : 'counter_shop';
+  const yy = String(new Date().getFullYear()).slice(-2);
+  const key = source === 'block_collection' ? 'block' : 'shop';
+  const metaKey = `counter_${key}_${yy}`;
+  const offset = SOURCE_OFFSET[source] ?? 0;
 
   return db.transaction('rw', db.meta, async () => {
     const row = await db.meta.get(metaKey);
     const next = (row?.value || 0) + 1;
     await db.meta.put({ key: metaKey, value: next });
-    return `${prefix}-${String(next).padStart(4, '0')}`;
+    const seq = offset + next;
+    return `BFC${yy}-${String(seq).padStart(4, '0')}`;
   });
 }
 
