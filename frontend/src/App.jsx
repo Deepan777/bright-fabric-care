@@ -8,6 +8,7 @@ import Orders from './screens/Orders.jsx';
 import Dashboard from './screens/Dashboard.jsx';
 import Admin from './screens/Admin.jsx';
 import PrintBill from './screens/PrintBill.jsx';
+import TrackOrder from './screens/TrackOrder.jsx';
 
 import { getSession, clearSession } from './auth.js';
 import { api } from './api.js';
@@ -64,6 +65,11 @@ export default function App() {
     clearSession();
     setSession(null);
     setTab('newbill');
+  }
+
+  // Public, no-login page for customers to check their own order status.
+  if (window.location.pathname.startsWith('/track')) {
+    return <TrackOrder />;
   }
 
   if (booting) {

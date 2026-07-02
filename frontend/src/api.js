@@ -69,6 +69,11 @@ export const api = {
       body: JSON.stringify({ orders }),
     }),
 
+  trackOrder: (bill_number, mobile) =>
+    request(
+      `/api/track?bill_number=${encodeURIComponent(bill_number)}&mobile=${encodeURIComponent(mobile)}`
+    ),
+
   getSettings: () => request('/api/settings'),
   updateSettings: (updates) =>
     request('/api/settings', {

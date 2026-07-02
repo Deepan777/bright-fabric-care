@@ -10,6 +10,7 @@ import dashboardRoutes from './routes/dashboard.js';
 import exportRoutes from './routes/export.js';
 import syncRoutes from './routes/sync.js';
 import settingsRoutes from './routes/settings.js';
+import trackRoutes from './routes/track.js';
 
 dotenv.config();
 
@@ -29,6 +30,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/export', exportRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/track', trackRoutes);
 
 const PORT = process.env.PORT || 4000;
 
