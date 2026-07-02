@@ -61,6 +61,7 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ payment_status }),
     }),
+  deleteOrder: (id) => request(`/api/orders/${id}`, { method: 'DELETE' }),
 
   getDashboard: () => request('/api/dashboard'),
   syncOrders: (orders) =>

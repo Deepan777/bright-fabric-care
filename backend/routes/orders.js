@@ -32,10 +32,11 @@ router.post('/', async (req, res) => {
 });
 
 // GET /api/orders — filterable list, newest first.
-// Query params: source, status, payment, date (YYYY-MM-DD), search
+// Query params: source, status, payment, date (YYYY-MM-DD), month (YYYY-MM),
+// year (YYYY), search
 router.get('/', async (req, res) => {
   try {
-    const { source, status, payment, date, search } = req.query;
+    const { source, status, payment, date, month, year, search } = req.query;
     const clauses = [];
     const params = [];
 
@@ -54,6 +55,14 @@ router.get('/', async (req, res) => {
     if (date) {
       params.push(date);
       clauses.push(`created_at::date = $${params.length}`);
+    }
+    if (month) {
+      params.push(month);
+      clauses.push(`to_char(created_at, 'YYYY-MM') = $${params.length}`);
+    }
+    if (year) {
+      params.push(year);
+      clauses.push(`extract(year from created_at) = $${params.length}::int`);
     }
     if (search) {
       params.push(`%${search}%`);
@@ -128,6 +137,20 @@ router.patch('/:id/payment', async (req, res) => {
     res.json(rows[0]);
   } catch (err) {
     console.error('payment update error', err);
+    res.status(500).json({ error: 'server error' });
+  }
+});
+
+// DELETE /api/orders/:id — permanently delete a bill (and its line items).
+router.delete('/:id', async (req, res) => {
+  try {
+    const { rowCount } = await query('DELETE FROM orders WHERE id = $1', [
+      req.params.id,
+    ]);
+    if (rowCount === 0) return res.status(404).json({ error: 'not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('delete order error', err);
     res.status(500).json({ error: 'server error' });
   }
 });
