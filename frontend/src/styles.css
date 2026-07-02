@@ -791,7 +791,12 @@ select {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ---------- Print bill (A5) ---------- */
+/* ---------- Print bill (80mm thermal receipt) ----------
+   Target hardware: Helett BillQuick Lite USB thermal receipt printer,
+   80mm roll, autocut. 72mm is used for content width to stay clear of
+   the printer's unprintable side margins. The receipt is always at
+   least 8 inches long (a flex spacer fills any extra space when there
+   are few items) and grows taller automatically for larger orders. */
 .print-screen {
   padding: 16px;
   display: flex;
@@ -806,21 +811,22 @@ select {
 }
 
 .bill {
-  width: 148mm;
-  min-height: 210mm;
-  padding: 8mm;
+  width: 72mm;
+  min-height: 8in;
+  padding: 4mm 3mm 6mm;
   background: #fff;
   color: #000;
-  font-size: 9pt;
-  border: 1px solid #000;
+  font-size: 11pt;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 .bill .shop-name {
   text-align: center;
   font-size: 15pt;
   font-weight: 800;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
 }
 
 .bill .shop-sub {
@@ -831,40 +837,55 @@ select {
 .bill .receipt-title {
   text-align: center;
   font-weight: 800;
-  font-size: 11pt;
-  margin: 6px 0;
-  border-top: 1px solid #000;
-  border-bottom: 1px solid #000;
-  padding: 3px 0;
+  font-size: 12pt;
+  margin: 4px 0;
 }
 
-.bill .bill-line {
-  display: flex;
-  justify-content: space-between;
-  margin: 3px 0;
+.bill .bill-rule {
+  border: none;
+  border-top: 1.5px dashed #000;
+  margin: 5px 0;
 }
 
-.bill .pay-status {
+.bill .bill-field {
+  font-size: 10.5pt;
+  margin: 2px 0;
+}
+
+/* Block + Room No — the details workers need to read at a glance. */
+.bill .bill-highlight {
+  font-size: 17pt;
   font-weight: 800;
+  margin: 3px 0;
+  line-height: 1.25;
+}
+
+.bill .pay-status-box {
+  text-align: center;
+  font-weight: 800;
+  font-size: 14pt;
+  padding: 5px 0;
+  border: 2px solid #000;
   margin: 6px 0;
 }
 
 .bill table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 6px;
-  font-size: 9pt;
+  margin-top: 4px;
+  font-size: 10pt;
 }
 
 .bill table th,
 .bill table td {
-  border: 1px solid #000;
-  padding: 3px 5px;
+  padding: 3px 2px;
+  border-bottom: 1px dashed #000;
 }
 
 .bill table th {
   font-weight: 700;
-  text-align: center;
+  text-align: left;
+  border-bottom: 1.5px solid #000;
 }
 
 .bill table td.num {
@@ -875,21 +896,30 @@ select {
   text-align: right;
 }
 
-.bill .total-row td {
+.bill .total-line {
+  display: flex;
+  justify-content: space-between;
   font-weight: 800;
+  font-size: 13pt;
+  margin: 6px 0;
+}
+
+/* Grows to fill remaining space up to the 8-inch minimum length; has no
+   effect once real content (many items) already exceeds that length. */
+.bill .bill-spacer {
+  flex: 1 1 auto;
 }
 
 .bill .footer {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 12px;
-  font-size: 9pt;
+  text-align: center;
+  font-size: 9.5pt;
+  line-height: 1.5;
 }
 
 /* Print rules — hide everything except the bill. */
 @media print {
   @page {
-    size: 148mm 210mm;
+    size: 80mm auto;
     margin: 0;
   }
 
@@ -906,9 +936,8 @@ select {
     position: absolute;
     top: 0;
     left: 0;
-    border: none;
-    width: 148mm;
-    min-height: 210mm;
+    width: 72mm;
+    min-height: 8in;
   }
 
   .header,
