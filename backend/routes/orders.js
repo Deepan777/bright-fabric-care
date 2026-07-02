@@ -120,18 +120,24 @@ router.patch('/:id/status', async (req, res) => {
   }
 });
 
-// PATCH /api/orders/:id/payment  { payment_status }
+// PATCH /api/orders/:id/payment  { payment_status, payment_method }
+// payment_method (cash | upi) is only kept when marking as paid.
 router.patch('/:id/payment', async (req, res) => {
   try {
-    const { payment_status } = req.body || {};
+    const { payment_status, payment_method } = req.body || {};
     const valid = ['paid', 'unpaid'];
     if (!valid.includes(payment_status)) {
       return res.status(400).json({ error: 'invalid payment_status' });
     }
+    const validMethod = ['cash', 'upi'];
+    const method =
+      payment_status === 'paid' && validMethod.includes(payment_method)
+        ? payment_method
+        : null;
     const { rows } = await query(
-      `UPDATE orders SET payment_status = $2, updated_at = NOW()
+      `UPDATE orders SET payment_status = $2, payment_method = $3, updated_at = NOW()
        WHERE id = $1 RETURNING *`,
-      [req.params.id, payment_status]
+      [req.params.id, payment_status, method]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'not found' });
     res.json(rows[0]);

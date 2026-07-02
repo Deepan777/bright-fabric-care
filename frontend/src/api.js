@@ -56,10 +56,10 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ order_status }),
     }),
-  setOrderPayment: (id, payment_status) =>
+  setOrderPayment: (id, payment_status, payment_method) =>
     request(`/api/orders/${id}/payment`, {
       method: 'PATCH',
-      body: JSON.stringify({ payment_status }),
+      body: JSON.stringify({ payment_status, payment_method }),
     }),
   deleteOrder: (id) => request(`/api/orders/${id}`, { method: 'DELETE' }),
 

@@ -20,8 +20,8 @@ export default function NewBill({ session, items, onBillGenerated }) {
   const [qtys, setQtys] = useState({}); // itemName -> quantity
   const [customItems, setCustomItems] = useState([]); // {item_name, rate, quantity}
   const [payment, setPayment] = useState(null); // 'paid' | 'unpaid'
+  const [paymentMethod, setPaymentMethod] = useState(null); // 'cash' | 'upi'
 
-  const [customer, setCustomer] = useState('');
   const [mobile, setMobile] = useState('');
   const [block, setBlock] = useState('');
   const [roomNo, setRoomNo] = useState('');
@@ -89,7 +89,7 @@ export default function NewBill({ session, items, onBillGenerated }) {
     setQtys({});
     setCustomItems([]);
     setPayment(null);
-    setCustomer('');
+    setPaymentMethod(null);
     setMobile('');
     setBlock('');
     setRoomNo('');
@@ -108,12 +108,15 @@ export default function NewBill({ session, items, onBillGenerated }) {
       notify('Select PAID or UNPAID', 'error');
       return;
     }
+    if (payment === 'paid' && !paymentMethod) {
+      notify('Select Cash or UPI', 'error');
+      return;
+    }
     setBusy(true);
     try {
       const bill_number = await nextBillNumber(session.source);
       const order = {
         bill_number,
-        customer_name: customer || null,
         block: block || null,
         room_no: roomNo || null,
         mobile: mobile || null,
@@ -122,6 +125,7 @@ export default function NewBill({ session, items, onBillGenerated }) {
         total_amount: grandTotal,
         order_status: 'pending',
         payment_status: payment,
+        payment_method: payment === 'paid' ? paymentMethod : null,
         source: session.source,
         pickup_date: isBlock ? pickupDate || null : null,
         dropback_date: isBlock ? dropbackDate || null : null,
@@ -169,10 +173,6 @@ export default function NewBill({ session, items, onBillGenerated }) {
       </div>
 
       <div className="field-grid">
-        <div className="field">
-          <label>Customer Name</label>
-          <input value={customer} onChange={(e) => setCustomer(e.target.value)} />
-        </div>
         <div className="field">
           <label>Mobile</label>
           <input
@@ -319,13 +319,37 @@ export default function NewBill({ session, items, onBillGenerated }) {
         </button>
         <button
           className={`pay-btn unpaid ${payment === 'unpaid' ? 'selected' : ''}`}
-          onClick={() => setPayment('unpaid')}
+          onClick={() => {
+            setPayment('unpaid');
+            setPaymentMethod(null);
+          }}
         >
           UNPAID
         </button>
+        {payment === 'paid' && (
+          <>
+            <button
+              className={`pay-btn method ${paymentMethod === 'cash' ? 'selected' : ''}`}
+              onClick={() => setPaymentMethod('cash')}
+            >
+              Cash
+            </button>
+            <button
+              className={`pay-btn method ${paymentMethod === 'upi' ? 'selected' : ''}`}
+              onClick={() => setPaymentMethod('upi')}
+            >
+              UPI
+            </button>
+          </>
+        )}
         <button
           className="btn-generate"
-          disabled={busy || lineItems.length === 0 || !payment}
+          disabled={
+            busy ||
+            lineItems.length === 0 ||
+            !payment ||
+            (payment === 'paid' && !paymentMethod)
+          }
           onClick={generateBill}
         >
           {busy ? 'Saving…' : 'Generate Bill'}

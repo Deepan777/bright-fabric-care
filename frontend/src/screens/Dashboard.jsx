@@ -22,6 +22,7 @@ function dayLabel(d) {
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  const [paymentPrompt, setPaymentPrompt] = useState(null);
   const notify = useToast();
 
   async function load() {
@@ -38,9 +39,11 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function markPaid(id) {
+  async function confirmMarkPaid(method) {
+    const order = paymentPrompt;
+    setPaymentPrompt(null);
     try {
-      await api.setOrderPayment(id, 'paid');
+      await api.setOrderPayment(order.id, 'paid', method);
       notify('Payment marked', 'success');
       load();
     } catch (err) {
@@ -136,7 +139,6 @@ export default function Dashboard() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Customer</th>
                 <th>Block</th>
                 <th>Room</th>
                 <th>Amount</th>
@@ -147,7 +149,6 @@ export default function Dashboard() {
             <tbody>
               {data.unpaidOrders.map((o) => (
                 <tr key={o.id}>
-                  <td>{o.customer_name || '—'}</td>
                   <td>{o.block || ''}</td>
                   <td>{o.room_no || ''}</td>
                   <td>₹{Number(o.total_amount).toFixed(0)}</td>
@@ -155,7 +156,7 @@ export default function Dashboard() {
                   <td>
                     <button
                       className="action-btn solid"
-                      onClick={() => markPaid(o.id)}
+                      onClick={() => setPaymentPrompt(o)}
                     >
                       Mark Paid
                     </button>
@@ -187,6 +188,28 @@ export default function Dashboard() {
           <div className="value">₹{data.allTime.totalOutstanding.toFixed(0)}</div>
         </div>
       </div>
+
+      {paymentPrompt && (
+        <div className="modal-overlay" onClick={() => setPaymentPrompt(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>How was this bill paid?</h3>
+            <div className="modal-actions">
+              <button
+                className="btn-secondary"
+                onClick={() => confirmMarkPaid('cash')}
+              >
+                Cash
+              </button>
+              <button
+                className="btn-primary"
+                onClick={() => confirmMarkPaid('upi')}
+              >
+                UPI
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

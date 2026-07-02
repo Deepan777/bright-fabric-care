@@ -16,7 +16,7 @@ router.get('/csv', async (_req, res) => {
     const { rows } = await query(
       `SELECT bill_number, customer_name, block, room_no, mobile,
               delivery_date, service_type, total_amount, order_status,
-              payment_status, source, pickup_date, dropback_date,
+              payment_status, payment_method, source, pickup_date, dropback_date,
               worker_note, created_at
        FROM orders ORDER BY created_at DESC`
     );
@@ -24,7 +24,7 @@ router.get('/csv', async (_req, res) => {
     const headers = [
       'Bill Number', 'Customer Name', 'Block', 'Room No', 'Mobile',
       'Delivery Date', 'Service Type', 'Total Amount', 'Order Status',
-      'Payment Status', 'Source', 'Pickup Date', 'Dropback Date',
+      'Payment Status', 'Payment Method', 'Source', 'Pickup Date', 'Dropback Date',
       'Worker Note', 'Created At',
     ];
 
@@ -34,7 +34,7 @@ router.get('/csv', async (_req, res) => {
         [
           r.bill_number, r.customer_name, r.block, r.room_no, r.mobile,
           r.delivery_date, r.service_type, r.total_amount, r.order_status,
-          r.payment_status, r.source, r.pickup_date, r.dropback_date,
+          r.payment_status, r.payment_method, r.source, r.pickup_date, r.dropback_date,
           r.worker_note, r.created_at,
         ].map(csvCell).join(',')
       );

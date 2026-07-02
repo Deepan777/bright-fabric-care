@@ -393,6 +393,12 @@ select {
   border-color: var(--red);
 }
 
+.pay-btn.method.selected {
+  background: var(--blue);
+  color: #fff;
+  border-color: var(--blue);
+}
+
 .btn-generate {
   margin-left: auto;
   background: var(--navy);

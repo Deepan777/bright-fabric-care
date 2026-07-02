@@ -4,7 +4,7 @@
   "description": "Laundry management for The Bright Fabric Care, VIT Campus",
   "start_url": "/",
   "display": "standalone",
-  "orientation": "landscape",
+  "orientation": "any",
   "background_color": "#ffffff",
   "theme_color": "#1a237e",
   "icons": [

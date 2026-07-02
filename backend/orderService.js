@@ -17,6 +17,7 @@ export async function createOrder(order) {
       total_amount = 0,
       order_status = 'pending',
       payment_status = 'unpaid',
+      payment_method = null,
       source = 'shop',
       pickup_date = null,
       dropback_date = null,
@@ -39,10 +40,10 @@ export async function createOrder(order) {
     const inserted = await client.query(
       `INSERT INTO orders
         (bill_number, customer_name, block, room_no, mobile, delivery_date,
-         service_type, total_amount, order_status, payment_status, source,
-         pickup_date, dropback_date, worker_note, created_at, updated_at, synced)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,
-               COALESCE($15, NOW()), NOW(), TRUE)
+         service_type, total_amount, order_status, payment_status, payment_method,
+         source, pickup_date, dropback_date, worker_note, created_at, updated_at, synced)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
+               COALESCE($16, NOW()), NOW(), TRUE)
        RETURNING id`,
       [
         bill_number,
@@ -55,6 +56,7 @@ export async function createOrder(order) {
         total_amount,
         order_status,
         payment_status,
+        payment_status === 'paid' ? payment_method : null,
         source,
         pickup_date || null,
         dropback_date || null,

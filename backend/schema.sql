@@ -26,10 +26,16 @@ CREATE TABLE IF NOT EXISTS orders (
   pickup_date    DATE,
   dropback_date  DATE,
   worker_note    TEXT,
+  payment_method TEXT,                                 -- cash | upi (set when paid)
   created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   synced         BOOLEAN NOT NULL DEFAULT TRUE
 );
+
+-- Migration: add payment_method to orders created before this column existed.
+-- CREATE TABLE ... IF NOT EXISTS above won't alter an already-existing table,
+-- so this runs on every boot and is a no-op once the column is present.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method TEXT;
 
 CREATE TABLE IF NOT EXISTS order_items (
   id         SERIAL PRIMARY KEY,

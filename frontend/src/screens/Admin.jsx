@@ -341,7 +341,7 @@ export default function Admin({ items, onItemsChanged }) {
           <ul>
             {unsynced.map((o) => (
               <li key={o.localId}>
-                {o.bill_number} — {o.customer_name || '—'} — ₹
+                {o.bill_number} — {o.block || '—'} {o.room_no || ''} — ₹
                 {Number(o.total_amount).toFixed(0)}
               </li>
             ))}
@@ -426,7 +426,7 @@ export default function Admin({ items, onItemsChanged }) {
                 <thead>
                   <tr>
                     <th>Bill No</th>
-                    <th>Customer</th>
+                    <th>Block / Room</th>
                     <th>Amount</th>
                     <th>Status</th>
                     <th>Date</th>
@@ -437,7 +437,9 @@ export default function Admin({ items, onItemsChanged }) {
                   {summaryOrders.map((o) => (
                     <tr key={o.id}>
                       <td>{o.bill_number}</td>
-                      <td>{o.customer_name || '—'}</td>
+                      <td>
+                        {o.block || '—'} {o.room_no || ''}
+                      </td>
                       <td>₹{Number(o.total_amount).toFixed(0)}</td>
                       <td>
                         <span className={`badge ${o.order_status}`}>
@@ -445,6 +447,7 @@ export default function Admin({ items, onItemsChanged }) {
                         </span>{' '}
                         <span className={`badge ${o.payment_status}`}>
                           {o.payment_status}
+                          {o.payment_method ? ` (${o.payment_method.toUpperCase()})` : ''}
                         </span>
                       </td>
                       <td>{fmtDate(o.created_at)}</td>

@@ -22,6 +22,7 @@ export default function Orders({ onReprint }) {
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [paymentPrompt, setPaymentPrompt] = useState(null);
   const notify = useToast();
 
   async function load() {
@@ -83,7 +84,7 @@ export default function Orders({ onReprint }) {
     const q = search.trim().toLowerCase();
     if (q) {
       list = list.filter((o) =>
-        [o.customer_name, o.block, o.mobile, o.bill_number]
+        [o.block, o.mobile, o.bill_number]
           .filter(Boolean)
           .some((v) => String(v).toLowerCase().includes(q))
       );
@@ -105,13 +106,19 @@ export default function Orders({ onReprint }) {
     }
   }
 
-  async function markPaid(order) {
+  function markPaid(order) {
     if (!order.id) {
       notify('Order not synced yet — try again after sync', 'info');
       return;
     }
+    setPaymentPrompt(order);
+  }
+
+  async function confirmMarkPaid(method) {
+    const order = paymentPrompt;
+    setPaymentPrompt(null);
     try {
-      await api.setOrderPayment(order.id, 'paid');
+      await api.setOrderPayment(order.id, 'paid', method);
       notify('Payment marked', 'success');
       load();
     } catch (err) {
@@ -137,7 +144,7 @@ export default function Orders({ onReprint }) {
 
       <input
         className="search-bar"
-        placeholder="Search by name, block, mobile, bill number"
+        placeholder="Search by block, mobile, bill number"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
@@ -155,7 +162,6 @@ export default function Orders({ onReprint }) {
           >
             <span className="bill-no">{o.bill_number}</span>
             {!o._synced && <span className="sync-dot" title="Not synced" />}
-            <span className="cust">{o.customer_name || '—'}</span>
             <span className="meta">
               {o.block || ''} {o.room_no ? `· ${o.room_no}` : ''}
             </span>
@@ -166,6 +172,7 @@ export default function Orders({ onReprint }) {
             <span className={`badge ${o.order_status}`}>{o.order_status}</span>
             <span className={`badge ${o.payment_status}`}>
               {o.payment_status}
+              {o.payment_method ? ` (${o.payment_method.toUpperCase()})` : ''}
             </span>
             <span className={`badge ${o.source}`}>
               {o.source === 'block_collection' ? 'Block' : 'Shop'}
@@ -228,6 +235,28 @@ export default function Orders({ onReprint }) {
           )}
         </div>
       ))}
+
+      {paymentPrompt && (
+        <div className="modal-overlay" onClick={() => setPaymentPrompt(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>How was {paymentPrompt.bill_number} paid?</h3>
+            <div className="modal-actions">
+              <button
+                className="btn-secondary"
+                onClick={() => confirmMarkPaid('cash')}
+              >
+                Cash
+              </button>
+              <button
+                className="btn-primary"
+                onClick={() => confirmMarkPaid('upi')}
+              >
+                UPI
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

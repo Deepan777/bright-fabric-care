@@ -65,6 +65,7 @@ export default function PrintBill({ order, onBack }) {
 
         <div className={`pay-status-box ${paid ? 'paid' : 'unpaid'}`}>
           PAYMENT: {paid ? 'PAID ✓' : 'UNPAID ✗'}
+          {paid && order.payment_method ? ` (${order.payment_method.toUpperCase()})` : ''}
         </div>
 
         <div className="bill-rule" />
