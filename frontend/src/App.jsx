@@ -90,27 +90,32 @@ export default function App() {
     return <PrintBill order={printOrder} onBack={() => setPrintOrder(null)} />;
   }
 
+  // Dashboard shows revenue/financial data — admin only. Workers (Shop
+  // Counter / Block Collection) never see the tab or the screen.
+  const isAdmin = session.role === 'admin';
+  const effectiveTab = tab === 'dashboard' && !isAdmin ? 'newbill' : tab;
+
   return (
     <div className="app">
       <Header session={session} onLogout={handleLogout} />
       <SyncBanner />
 
-      {tab === 'newbill' && (
+      {effectiveTab === 'newbill' && (
         <NewBill
           session={session}
           items={items}
           onBillGenerated={(order) => setPrintOrder(order)}
         />
       )}
-      {tab === 'orders' && (
+      {effectiveTab === 'orders' && (
         <Orders onReprint={(order) => setPrintOrder(order)} />
       )}
-      {tab === 'dashboard' && <Dashboard />}
-      {tab === 'admin' && (
+      {effectiveTab === 'dashboard' && isAdmin && <Dashboard />}
+      {effectiveTab === 'admin' && (
         <Admin items={items} onItemsChanged={refreshItems} />
       )}
 
-      <TabBar active={tab} onChange={setTab} />
+      <TabBar active={effectiveTab} onChange={setTab} showDashboard={isAdmin} />
     </div>
   );
 }
