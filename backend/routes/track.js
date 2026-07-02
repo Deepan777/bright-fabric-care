@@ -3,14 +3,15 @@ import { query } from '../db.js';
 
 const router = Router();
 
-// GET /api/track?bill_number=SHOP-0001&mobile=9876543210
-// Public, unauthenticated — a customer checks their own order status.
-// Requires an exact match on BOTH fields so no one can browse other orders.
+// GET /api/track?block=A Block&room_no=101
+// Public, unauthenticated — a customer checks their own orders using the
+// same block + room number they gave when dropping off laundry.
+// Returns the most recent orders for that block + room (newest first).
 router.get('/', async (req, res) => {
   try {
-    const { bill_number, mobile } = req.query;
-    if (!bill_number || !mobile) {
-      return res.status(400).json({ error: 'bill_number and mobile are required' });
+    const { block, room_no } = req.query;
+    if (!block || !room_no) {
+      return res.status(400).json({ error: 'block and room_no are required' });
     }
 
     const { rows } = await query(
@@ -18,17 +19,19 @@ router.get('/', async (req, res) => {
               service_type, total_amount, order_status, payment_status,
               created_at
        FROM orders
-       WHERE bill_number = $1 AND mobile = $2`,
-      [String(bill_number).trim(), String(mobile).trim()]
+       WHERE block = $1 AND room_no = $2
+       ORDER BY created_at DESC
+       LIMIT 20`,
+      [String(block).trim(), String(room_no).trim()]
     );
 
     if (rows.length === 0) {
       return res
         .status(404)
-        .json({ error: 'No order found for that bill number and mobile number.' });
+        .json({ error: 'No orders found for that block and room number.' });
     }
 
-    res.json(rows[0]);
+    res.json(rows);
   } catch (err) {
     console.error('track error', err);
     res.status(500).json({ error: 'server error' });

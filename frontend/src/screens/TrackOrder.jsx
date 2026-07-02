@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { api } from '../api.js';
 
+const BLOCKS = Array.from({ length: 26 }, (_, i) =>
+  `${String.fromCharCode(65 + i)} Block`
+);
+
 function fmtDate(d) {
   if (!d) return '';
   try {
@@ -10,28 +14,28 @@ function fmtDate(d) {
   }
 }
 
-// Public page — no login required. A customer enters their bill number and
-// mobile number (both must match) to see their order status.
+// Public page — no login required. A customer enters the same block + room
+// number they gave when dropping off laundry to see their order status.
 export default function TrackOrder() {
-  const [billNumber, setBillNumber] = useState('');
-  const [mobile, setMobile] = useState('');
-  const [result, setResult] = useState(null);
+  const [block, setBlock] = useState('');
+  const [roomNo, setRoomNo] = useState('');
+  const [orders, setOrders] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
   async function check() {
     setError('');
-    setResult(null);
-    if (!billNumber.trim() || !mobile.trim()) {
-      setError('Enter both bill number and mobile number');
+    setOrders(null);
+    if (!block || !roomNo.trim()) {
+      setError('Select your block and enter your room number');
       return;
     }
     setBusy(true);
     try {
-      const order = await api.trackOrder(billNumber.trim(), mobile.trim());
-      setResult(order);
+      const result = await api.trackOrders(block, roomNo.trim());
+      setOrders(result);
     } catch (err) {
-      setError(err.message || 'Order not found');
+      setError(err.message || 'No orders found');
     } finally {
       setBusy(false);
     }
@@ -43,20 +47,23 @@ export default function TrackOrder() {
       <div className="sub">Check your laundry status</div>
 
       <div className="field" style={{ marginBottom: 12 }}>
-        <label>Bill Number</label>
-        <input
-          placeholder="e.g. SHOP-0001"
-          value={billNumber}
-          onChange={(e) => setBillNumber(e.target.value.toUpperCase())}
-        />
+        <label>Block</label>
+        <select value={block} onChange={(e) => setBlock(e.target.value)}>
+          <option value="">Select block</option>
+          {BLOCKS.map((b) => (
+            <option key={b} value={b}>
+              {b}
+            </option>
+          ))}
+        </select>
       </div>
       <div className="field" style={{ marginBottom: 20 }}>
-        <label>Mobile Number</label>
+        <label>Room No</label>
         <input
           inputMode="numeric"
-          placeholder="10-digit mobile number"
-          value={mobile}
-          onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
+          placeholder="e.g. 101"
+          value={roomNo}
+          onChange={(e) => setRoomNo(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && check()}
         />
       </div>
@@ -69,27 +76,27 @@ export default function TrackOrder() {
         <p style={{ color: '#c62828', fontWeight: 600, marginTop: 16 }}>{error}</p>
       )}
 
-      {result && (
-        <div className="order-row" style={{ marginTop: 20, textAlign: 'left' }}>
-          <div className="row-head">
-            <span className="bill-no">{result.bill_number}</span>
-            <span className={`badge ${result.order_status}`}>
-              {result.order_status}
-            </span>
-            <span className={`badge ${result.payment_status}`}>
-              {result.payment_status}
-            </span>
-          </div>
-          <p style={{ marginTop: 10 }}>
-            <strong>{result.customer_name || 'Customer'}</strong>
-            <br />
-            {result.block ? `${result.block} · Room ${result.room_no || ''}` : ''}
-          </p>
-          <p>
-            Service: {result.service_type === 'iron_only' ? 'Iron Only' : 'Wash + Iron'}
-          </p>
-          <p>Delivery Date: {fmtDate(result.delivery_date)}</p>
-          <p>Total Amount: ₹{Number(result.total_amount).toFixed(0)}</p>
+      {orders && (
+        <div style={{ marginTop: 20, textAlign: 'left' }}>
+          {orders.map((o) => (
+            <div className="order-row" key={o.bill_number}>
+              <div className="row-head">
+                <span className="bill-no">{o.bill_number}</span>
+                <span className={`badge ${o.order_status}`}>{o.order_status}</span>
+                <span className={`badge ${o.payment_status}`}>
+                  {o.payment_status}
+                </span>
+              </div>
+              <p style={{ marginTop: 10 }}>
+                Service: {o.service_type === 'iron_only' ? 'Iron Only' : 'Wash + Iron'}
+              </p>
+              <p>Delivery Date: {fmtDate(o.delivery_date)}</p>
+              <p>Total Amount: ₹{Number(o.total_amount).toFixed(0)}</p>
+              <p style={{ color: '#666', fontSize: 14 }}>
+                Placed: {fmtDate(o.created_at)}
+              </p>
+            </div>
+          ))}
         </div>
       )}
     </div>
