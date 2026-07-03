@@ -1,11 +1,25 @@
 // Thin wrapper around fetch pointed at the deployed backend.
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+const TIMEOUT_MS = 10000; // never let a slow/unstable connection hang the UI
 
 async function request(path, options = {}) {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      ...options,
+    });
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new Error('Connection timed out — check your internet');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) {
     let message = `Request failed (${res.status})`;
     try {

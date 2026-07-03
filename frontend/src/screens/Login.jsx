@@ -1,7 +1,10 @@
 import { useState } from 'react';
-import { api } from '../api.js';
 import { setSession } from '../auth.js';
+import { loadSettings } from '../dataSync.js';
 import { useToast } from '../toast.jsx';
+
+const PIN_KEY_BY_ROLE = { shop: 'pin_shop', block: 'pin_block', admin: 'pin_admin' };
+const SOURCE_BY_ROLE = { shop: 'shop', block: 'block_collection', admin: 'admin' };
 
 export default function Login({ onLogin }) {
   const [role, setRole] = useState(null); // 'shop' | 'block' | 'admin'
@@ -9,27 +12,23 @@ export default function Login({ onLogin }) {
   const [busy, setBusy] = useState(false);
   const notify = useToast();
 
+  // PINs are checked against the local cache — instant, works with zero
+  // internet. The cache itself refreshes at most once a day in the
+  // background (or immediately after an Admin PIN change), so login never
+  // has to wait on a network round-trip.
   async function submit() {
     if (!role || pin.length < 4) return;
     setBusy(true);
     try {
-      const res = await api.login(role, pin);
-      const session = { role: res.role, source: res.source };
+      const settings = await loadSettings();
+      const expected = settings[PIN_KEY_BY_ROLE[role]];
+      if (String(pin) !== String(expected)) {
+        notify('Incorrect PIN', 'error');
+        return;
+      }
+      const session = { role, source: SOURCE_BY_ROLE[role] };
       setSession(session);
       onLogin(session);
-    } catch (err) {
-      // Fallback: allow known default PINs offline so the shop is never locked
-      // out if the backend is briefly unreachable.
-      const offline = { shop: '1111', block: '2222', admin: '9999' };
-      if (offline[role] && pin === offline[role]) {
-        const source =
-          role === 'block' ? 'block_collection' : role === 'shop' ? 'shop' : 'admin';
-        const session = { role, source };
-        setSession(session);
-        onLogin(session);
-      } else {
-        notify(err.message || 'Login failed', 'error');
-      }
     } finally {
       setBusy(false);
     }

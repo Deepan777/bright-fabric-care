@@ -59,6 +59,7 @@ export async function nextBillNumber(source) {
 export async function cacheItems(items) {
   await db.items.clear();
   await db.items.bulkPut(items);
+  await setLastFetched('items');
 }
 
 export async function getCachedItems() {
@@ -95,4 +96,70 @@ export async function setMeta(key, value) {
 export async function getMeta(key) {
   const row = await db.meta.get(key);
   return row?.value;
+}
+
+// --- Daily data cache ---
+// The app should only touch the network once a day per data type (items,
+// settings, orders list, dashboard) — everything else reads from here
+// instantly. See dataSync.js for the loaders that use this.
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export async function getLastFetched(name) {
+  return getMeta(`lastFetched_${name}`);
+}
+
+export async function setLastFetched(name) {
+  await setMeta(`lastFetched_${name}`, new Date().toISOString());
+}
+
+export async function isStale(name, maxAgeMs = DAY_MS) {
+  const ts = await getLastFetched(name);
+  if (!ts) return true;
+  return Date.now() - new Date(ts).getTime() > maxAgeMs;
+}
+
+const DEFAULT_SETTINGS = { pin_shop: '1111', pin_block: '2222', pin_admin: '9999' };
+
+export async function cacheSettings(settings) {
+  await setMeta('cache_settings', settings);
+  await setLastFetched('settings');
+}
+
+export async function getCachedSettings() {
+  return (await getMeta('cache_settings')) || DEFAULT_SETTINGS;
+}
+
+export async function cacheCloudOrders(orders) {
+  await setMeta('cache_cloud_orders', orders);
+  await setLastFetched('orders');
+}
+
+export async function getCachedCloudOrders() {
+  return (await getMeta('cache_cloud_orders')) || [];
+}
+
+// Update one cached order in place right after a write succeeds (status
+// change, payment, etc.) so the list reflects it instantly without waiting
+// for the next daily pull.
+export async function patchCachedOrder(id, patch) {
+  const cached = await getCachedCloudOrders();
+  const updated = cached.map((o) => (o.id === id ? { ...o, ...patch } : o));
+  await setMeta('cache_cloud_orders', updated);
+  return updated;
+}
+
+export async function removeCachedOrder(id) {
+  const cached = await getCachedCloudOrders();
+  const updated = cached.filter((o) => o.id !== id);
+  await setMeta('cache_cloud_orders', updated);
+  return updated;
+}
+
+export async function cacheDashboard(data) {
+  await setMeta('cache_dashboard', data);
+  await setLastFetched('dashboard');
+}
+
+export async function getCachedDashboard() {
+  return getMeta('cache_dashboard');
 }

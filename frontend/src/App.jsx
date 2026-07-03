@@ -12,7 +12,8 @@ import TrackOrder from './screens/TrackOrder.jsx';
 
 import { getSession, clearSession } from './auth.js';
 import { api } from './api.js';
-import { cacheItems, getCachedItems, DEFAULT_ITEMS } from './db.js';
+import { cacheItems } from './db.js';
+import { loadItems } from './dataSync.js';
 import { startAutoSync } from './sync.js';
 import { useToast } from './toast.jsx';
 
@@ -24,24 +25,18 @@ export default function App() {
   const [printOrder, setPrintOrder] = useState(null);
   const notify = useToast();
 
-  // First-launch: load item catalogue (from cloud, falling back to cache) and
-  // start the background sync loop.
+  // Boot instantly from the local item cache — no network wait. If the
+  // cache is more than a day old, loadItems() silently refreshes it in the
+  // background and calls us back with fresh data when it lands.
   useEffect(() => {
     let cancelled = false;
     async function boot() {
-      try {
-        const cloud = await api.getItems();
-        if (!cancelled) {
-          setItems(cloud);
-          await cacheItems(cloud);
-        }
-      } catch {
-        // Offline — use whatever we cached last time, or the built-in
-        // defaults so the app still works with no backend at all.
-        const cached = await getCachedItems();
-        if (!cancelled) setItems(cached.length ? cached : DEFAULT_ITEMS);
-      } finally {
-        if (!cancelled) setBooting(false);
+      const cached = await loadItems((fresh) => {
+        if (!cancelled) setItems(fresh);
+      });
+      if (!cancelled) {
+        setItems(cached);
+        setBooting(false);
       }
     }
     boot();
@@ -51,13 +46,16 @@ export default function App() {
     };
   }, []);
 
+  // Called right after an Admin price/item edit — this is a deliberate,
+  // user-triggered action so it fetches immediately rather than waiting
+  // for the next scheduled daily refresh.
   async function refreshItems() {
     try {
       const cloud = await api.getItems();
       setItems(cloud);
       await cacheItems(cloud);
     } catch {
-      /* offline */
+      notify('Could not refresh — still using existing prices', 'info');
     }
   }
 

@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
-import { getLocalOrders } from '../db.js';
+import {
+  getLocalOrders,
+  cacheCloudOrders,
+  patchCachedOrder,
+  getLastFetched,
+} from '../db.js';
+import { loadOrders } from '../dataSync.js';
 import { useToast } from '../toast.jsx';
 
 const FILTERS = [
@@ -16,40 +22,74 @@ function fmtDate(d) {
   }
 }
 
+function fmtDateTime(d) {
+  if (!d) return 'never';
+  try {
+    return new Date(d).toLocaleString('en-GB');
+  } catch {
+    return d;
+  }
+}
+
+// Merge + dedup by bill_number, preferring the cloud copy (has a server id).
+function mergeOrders(cloud, local) {
+  const byBill = new Map();
+  for (const o of cloud) {
+    byBill.set(o.bill_number, { ...o, _synced: true });
+  }
+  for (const o of local) {
+    if (!byBill.has(o.bill_number)) {
+      byBill.set(o.bill_number, { ...o, _synced: o.synced === true });
+    }
+  }
+  return Array.from(byBill.values()).sort(
+    (a, b) => new Date(b.created_at) - new Date(a.created_at)
+  );
+}
+
 export default function Orders({ onReprint }) {
   const [orders, setOrders] = useState([]);
   const [filter, setFilter] = useState('All');
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(null);
   const [paymentPrompt, setPaymentPrompt] = useState(null);
   const notify = useToast();
 
+  // Loads instantly from the local cache. If the cache is more than a day
+  // old, loadOrders() silently refreshes it in the background and the
+  // onUpdate callback re-merges the view once fresh data lands.
   async function load() {
     setLoading(true);
-    let cloud = [];
-    try {
-      cloud = await api.getOrders();
-    } catch {
-      /* offline — cloud stays empty */
-    }
+    const cloud = await loadOrders(async (fresh) => {
+      const local = await getLocalOrders();
+      setOrders(mergeOrders(fresh, local));
+      setLastUpdated(new Date().toISOString());
+    });
     const local = await getLocalOrders();
-
-    // Merge + dedup by bill_number, preferring the cloud copy (has server id).
-    const byBill = new Map();
-    for (const o of cloud) {
-      byBill.set(o.bill_number, { ...o, _synced: true });
-    }
-    for (const o of local) {
-      if (!byBill.has(o.bill_number)) {
-        byBill.set(o.bill_number, { ...o, _synced: o.synced === true });
-      }
-    }
-    const merged = Array.from(byBill.values()).sort(
-      (a, b) => new Date(b.created_at) - new Date(a.created_at)
-    );
-    setOrders(merged);
+    setOrders(mergeOrders(cloud, local));
+    setLastUpdated(await getLastFetched('orders'));
     setLoading(false);
+  }
+
+  // Explicit, awaited refresh — for when a worker knows the connection is
+  // good right now and wants to see the other tablet's bills immediately.
+  async function refreshNow() {
+    setRefreshing(true);
+    try {
+      const cloud = await api.getOrders();
+      await cacheCloudOrders(cloud);
+      const local = await getLocalOrders();
+      setOrders(mergeOrders(cloud, local));
+      setLastUpdated(new Date().toISOString());
+      notify('Orders refreshed', 'success');
+    } catch (err) {
+      notify(err.message || 'Could not refresh — still offline', 'error');
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   useEffect(() => {
@@ -92,6 +132,9 @@ export default function Orders({ onReprint }) {
     return list;
   }, [orders, filter, search]);
 
+  // Status/payment changes patch the cache + on-screen list directly the
+  // instant the server confirms them — no need to wait for the next
+  // scheduled daily refresh to see your own action take effect.
   async function updateStatus(order, status) {
     if (!order.id) {
       notify('Order not synced yet — try again after sync', 'info');
@@ -99,8 +142,11 @@ export default function Orders({ onReprint }) {
     }
     try {
       await api.setOrderStatus(order.id, status);
+      await patchCachedOrder(order.id, { order_status: status });
+      setOrders((list) =>
+        list.map((o) => (o.id === order.id ? { ...o, order_status: status } : o))
+      );
       notify('Status changed', 'success');
-      load();
     } catch (err) {
       notify(err.message || 'Update failed', 'error');
     }
@@ -119,8 +165,18 @@ export default function Orders({ onReprint }) {
     setPaymentPrompt(null);
     try {
       await api.setOrderPayment(order.id, 'paid', method);
+      await patchCachedOrder(order.id, {
+        payment_status: 'paid',
+        payment_method: method,
+      });
+      setOrders((list) =>
+        list.map((o) =>
+          o.id === order.id
+            ? { ...o, payment_status: 'paid', payment_method: method }
+            : o
+        )
+      );
       notify('Payment marked', 'success');
-      load();
     } catch (err) {
       notify(err.message || 'Update failed', 'error');
     }
@@ -129,6 +185,15 @@ export default function Orders({ onReprint }) {
   return (
     <div className="screen">
       <h2>Orders</h2>
+
+      <div className="section-title-row" style={{ marginBottom: 12 }}>
+        <span style={{ fontSize: 13, color: '#666' }}>
+          Updated: {fmtDateTime(lastUpdated)}
+        </span>
+        <button className="action-btn" onClick={refreshNow} disabled={refreshing}>
+          {refreshing ? 'Refreshing…' : '↻ Refresh'}
+        </button>
+      </div>
 
       <div className="filter-tabs">
         {FILTERS.map((f) => (

@@ -5,9 +5,22 @@ import {
   getUnsyncedOrders,
   clearLocalData,
   getMeta,
+  cacheSettings,
+  getLastFetched,
+  removeCachedOrder,
 } from '../db.js';
+import { loadSettings, loadDashboard, forceRefreshAll } from '../dataSync.js';
 import { syncNow } from '../sync.js';
 import { useToast } from '../toast.jsx';
+
+function fmtDateTime(d) {
+  if (!d) return 'never';
+  try {
+    return new Date(d).toLocaleString('en-GB');
+  } catch {
+    return d;
+  }
+}
 
 function fmtDate(d) {
   if (!d) return '';
@@ -50,6 +63,8 @@ export default function Admin({ items, onItemsChanged }) {
   const [summaryOrders, setSummaryOrders] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [confirmDeleteOrder, setConfirmDeleteOrder] = useState(null);
+  const [dataRefreshedAt, setDataRefreshedAt] = useState(null);
+  const [refreshingAll, setRefreshingAll] = useState(false);
 
   useEffect(() => {
     setRows(items.map((i) => ({ ...i })));
@@ -61,34 +76,54 @@ export default function Admin({ items, onItemsChanged }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unlocked]);
 
+  // Cache-first — instant, at most one background network touch per day.
   async function refreshMeta() {
     setUnsynced(await getUnsyncedOrders());
     setLastSync(await getMeta('last_sync'));
-    try {
-      const dash = await api.getDashboard();
-      setStats(dash.allTime);
-    } catch {
-      /* offline */
-    }
-    try {
-      const s = await api.getSettings();
+    setDataRefreshedAt(await getLastFetched('settings'));
+
+    const dash = await loadDashboard((fresh) => setStats(fresh.allTime));
+    if (dash) setStats(dash.allTime);
+
+    const s = await loadSettings((fresh) => {
       setPins({
-        pin_shop: s.pin_shop || '',
-        pin_block: s.pin_block || '',
-        pin_admin: s.pin_admin || '',
+        pin_shop: fresh.pin_shop || '',
+        pin_block: fresh.pin_block || '',
+        pin_admin: fresh.pin_admin || '',
       });
-    } catch {
-      /* offline */
+      setDataRefreshedAt(new Date().toISOString());
+    });
+    setPins({
+      pin_shop: s.pin_shop || '',
+      pin_block: s.pin_block || '',
+      pin_admin: s.pin_admin || '',
+    });
+  }
+
+  // PIN check is against the local cache — instant, works offline.
+  async function tryUnlock() {
+    const settings = await loadSettings();
+    if (String(pin) === String(settings.pin_admin)) {
+      setUnlocked(true);
+    } else {
+      notify('Incorrect admin PIN', 'error');
     }
   }
 
-  async function tryUnlock() {
+  // Pulls fresh items/settings/orders/dashboard right now instead of
+  // waiting for the once-a-day background refresh.
+  async function refreshAllData() {
+    setRefreshingAll(true);
     try {
-      await api.login('admin', pin);
-      setUnlocked(true);
-    } catch {
-      if (pin === '9999') setUnlocked(true);
-      else notify('Incorrect admin PIN', 'error');
+      await forceRefreshAll();
+      setDataRefreshedAt(new Date().toISOString());
+      await refreshMeta();
+      onItemsChanged();
+      notify('Data refreshed', 'success');
+    } catch (err) {
+      notify(err.message || 'Could not refresh — still offline', 'error');
+    } finally {
+      setRefreshingAll(false);
     }
   }
 
@@ -143,6 +178,9 @@ export default function Admin({ items, onItemsChanged }) {
   async function savePins() {
     try {
       await api.updateSettings(pins);
+      // Update the local cache immediately so the new PINs work on this
+      // tablet right away, without waiting for the next daily refresh.
+      await cacheSettings(pins);
       notify('PINs updated', 'success');
     } catch (err) {
       notify(err.message || 'Save failed', 'error');
@@ -178,6 +216,7 @@ export default function Admin({ items, onItemsChanged }) {
   async function deleteOrder(order) {
     try {
       await api.deleteOrder(order.id);
+      await removeCachedOrder(order.id);
       notify('Bill deleted', 'success');
       setConfirmDeleteOrder(null);
       setSummaryOrders((list) => list.filter((o) => o.id !== order.id));
@@ -353,6 +392,27 @@ export default function Admin({ items, onItemsChanged }) {
         <p style={{ color: '#666', marginTop: 8 }}>
           Last sync:{' '}
           {lastSync ? new Date(lastSync).toLocaleString('en-GB') : 'never'}
+        </p>
+      </div>
+
+      {/* Daily data refresh */}
+      <div className="admin-section">
+        <div className="section-title">Data Refresh</div>
+        <p style={{ color: '#666' }}>
+          Items, prices, PINs, orders, and dashboard stats refresh
+          automatically once a day in the background to keep the app fast
+          and working offline. Use this to pull the latest right now instead
+          of waiting.
+        </p>
+        <button
+          className="btn-primary"
+          onClick={refreshAllData}
+          disabled={refreshingAll}
+        >
+          {refreshingAll ? 'Refreshing…' : 'Refresh Data Now'}
+        </button>
+        <p style={{ color: '#666', marginTop: 8 }}>
+          Last data refresh: {fmtDateTime(dataRefreshedAt)}
         </p>
       </div>
 

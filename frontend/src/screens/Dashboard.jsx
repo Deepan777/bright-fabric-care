@@ -1,11 +1,22 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import { cacheDashboard, getLastFetched } from '../db.js';
+import { loadDashboard } from '../dataSync.js';
 import { useToast } from '../toast.jsx';
 
 function fmtDate(d) {
   if (!d) return '';
   try {
     return new Date(d).toLocaleDateString('en-GB');
+  } catch {
+    return d;
+  }
+}
+
+function fmtDateTime(d) {
+  if (!d) return 'never';
+  try {
+    return new Date(d).toLocaleString('en-GB');
   } catch {
     return d;
   }
@@ -22,15 +33,52 @@ function dayLabel(d) {
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(null);
   const [paymentPrompt, setPaymentPrompt] = useState(null);
   const notify = useToast();
 
+  // Shows cached stats instantly. If the cache is more than a day old,
+  // loadDashboard() silently refreshes it in the background.
   async function load() {
+    const cached = await loadDashboard((fresh) => {
+      setData(fresh);
+      setLastUpdated(new Date().toISOString());
+    });
+    if (cached) {
+      setData(cached);
+      setLastUpdated(await getLastFetched('dashboard'));
+      setError(null);
+      return;
+    }
+    // No cache at all yet (very first time Admin opens this) — one real fetch.
     try {
-      setData(await api.getDashboard());
+      const fresh = await api.getDashboard();
+      await cacheDashboard(fresh);
+      setData(fresh);
+      setLastUpdated(new Date().toISOString());
       setError(null);
     } catch (err) {
-      setError(err.message || 'Could not load dashboard');
+      setError(
+        err.message || 'Could not load dashboard — connect to the internet once to load it.'
+      );
+    }
+  }
+
+  // Explicit, awaited refresh for when the admin wants current numbers now.
+  async function refreshNow() {
+    setRefreshing(true);
+    try {
+      const fresh = await api.getDashboard();
+      await cacheDashboard(fresh);
+      setData(fresh);
+      setLastUpdated(new Date().toISOString());
+      setError(null);
+      notify('Dashboard refreshed', 'success');
+    } catch (err) {
+      notify(err.message || 'Could not refresh — still offline', 'error');
+    } finally {
+      setRefreshing(false);
     }
   }
 
@@ -45,7 +93,7 @@ export default function Dashboard() {
     try {
       await api.setOrderPayment(order.id, 'paid', method);
       notify('Payment marked', 'success');
-      load();
+      refreshNow(); // stats changed — worth an immediate real refresh
     } catch (err) {
       notify(err.message || 'Update failed', 'error');
     }
@@ -61,6 +109,9 @@ export default function Dashboard() {
       <div className="screen">
         <h2>Dashboard</h2>
         <p>{error}</p>
+        <button className="btn-primary" style={{ width: 'auto' }} onClick={load}>
+          Try Again
+        </button>
       </div>
     );
   }
@@ -78,6 +129,15 @@ export default function Dashboard() {
   return (
     <div className="screen">
       <h2>Dashboard</h2>
+
+      <div className="section-title-row" style={{ marginBottom: 12 }}>
+        <span style={{ fontSize: 13, color: '#666' }}>
+          Updated: {fmtDateTime(lastUpdated)}
+        </span>
+        <button className="action-btn" onClick={refreshNow} disabled={refreshing}>
+          {refreshing ? 'Refreshing…' : '↻ Refresh'}
+        </button>
+      </div>
 
       <div className="stat-grid">
         <div className="stat-card green">
