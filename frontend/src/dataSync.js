@@ -11,6 +11,7 @@ import {
   getCachedDashboard,
   isStale,
 } from './db.js';
+import { syncNow } from './sync.js';
 
 // Every loader below returns cached data INSTANTLY — no network wait, ever.
 // If that cache is more than a day old, a background fetch silently
@@ -94,4 +95,14 @@ export async function forceRefreshAll() {
     cacheDashboard(dashboard),
   ]);
   return { items, settings, orders, dashboard };
+}
+
+// The one action to run at the end of the day: push every locally created
+// bill up to the cloud, then pull fresh items/prices/settings/orders/
+// dashboard. This is the ONLY time the app is expected to need internet —
+// the rest of the day it runs entirely from local storage.
+export async function endOfDaySync() {
+  const pushed = await syncNow();
+  const fresh = await forceRefreshAll();
+  return { pushed, ...fresh };
 }

@@ -16,7 +16,18 @@ function emit(patch) {
   for (const fn of listeners) fn(state);
 }
 
+// Local-only — recomputes how many bills are waiting to sync. No network
+// call, so this is safe to run on every boot regardless of connectivity.
+export async function refreshPendingCount() {
+  const unsynced = await getUnsyncedOrders();
+  emit({ pending: unsynced.length });
+  return unsynced.length;
+}
+
 // Push all unsynced local orders to the cloud. Returns number synced.
+// Only ever called explicitly (the header's end-of-day Sync button, or
+// Admin's Sync Now) — the app never touches the network automatically
+// during the day, so it stays fast and reliable on a bad connection.
 export async function syncNow() {
   const unsynced = await getUnsyncedOrders();
   emit({ pending: unsynced.length });
@@ -54,22 +65,3 @@ export async function syncNow() {
   }
 }
 
-let intervalId = null;
-
-// Retry sync every 30 seconds automatically.
-export function startAutoSync() {
-  if (intervalId) return;
-  const tick = () => {
-    syncNow().catch(() => {
-      /* offline — banner already reflects pending count */
-    });
-  };
-  tick();
-  intervalId = setInterval(tick, 30000);
-  window.addEventListener('online', tick);
-}
-
-export function stopAutoSync() {
-  if (intervalId) clearInterval(intervalId);
-  intervalId = null;
-}

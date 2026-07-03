@@ -6,25 +6,26 @@ import { pool, query } from './db.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Default item catalogue with both prices.
+// Iron Only price is 10 for every item except Bed Sheet (20).
 const DEFAULT_ITEMS = [
-  ['Shorts', 15, 15],
-  ['Towel', 15, 15],
-  ['Banian', 15, 15],
-  ['Pillow Cover', 15, 15],
-  ['Lungie', 20, 15],
-  ['T-Shirt', 20, 15],
-  ['Shirt', 25, 15],
-  ['Pant', 25, 15],
-  ['Track Pant', 25, 15],
-  ['Jeans Pant', 25, 15],
-  ['Turkey Towel', 20, 15],
-  ['Bed Sheet', 60, 15],
-  ['Small Blanket', 150, 100],
-  ['Big Blanket', 250, 100],
-  ['Inner', 30, 15],
-  ['Socks (Pair)', 30, 15],
+  ['Shorts', 15, 10],
+  ['Towel', 15, 10],
+  ['Banian', 15, 10],
+  ['Pillow Cover', 15, 10],
+  ['Lungie', 20, 10],
+  ['T-Shirt', 20, 10],
+  ['Shirt', 25, 10],
+  ['Pant', 25, 10],
+  ['Track Pant', 25, 10],
+  ['Jeans Pant', 25, 10],
+  ['Turkey Towel', 20, 10],
+  ['Bed Sheet', 60, 20],
+  ['Small Blanket', 150, 10],
+  ['Big Blanket', 250, 10],
+  ['Inner', 30, 10],
+  ['Socks (Pair)', 30, 10],
   ['Kerchief', 10, 10],
-  ['Blazer', 200, 100],
+  ['Blazer', 200, 10],
   ['Others', 0, 0],
 ];
 

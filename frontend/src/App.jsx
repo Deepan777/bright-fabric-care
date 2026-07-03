@@ -14,7 +14,7 @@ import { getSession, clearSession } from './auth.js';
 import { api } from './api.js';
 import { cacheItems } from './db.js';
 import { loadItems } from './dataSync.js';
-import { startAutoSync } from './sync.js';
+import { refreshPendingCount } from './sync.js';
 import { useToast } from './toast.jsx';
 
 export default function App() {
@@ -40,7 +40,10 @@ export default function App() {
       }
     }
     boot();
-    startAutoSync();
+    // Local-only — no network. Populates the "N pending" banner without
+    // touching the internet; the app only syncs when the end-of-day
+    // Sync button in the header is tapped.
+    refreshPendingCount();
     return () => {
       cancelled = true;
     };
@@ -95,7 +98,11 @@ export default function App() {
 
   return (
     <div className="app">
-      <Header session={session} onLogout={handleLogout} />
+      <Header
+        session={session}
+        onLogout={handleLogout}
+        onSynced={(fresh) => setItems(fresh.items)}
+      />
       <SyncBanner />
 
       {effectiveTab === 'newbill' && (

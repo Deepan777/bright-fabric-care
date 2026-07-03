@@ -89,6 +89,21 @@ select {
   font-weight: 600;
 }
 
+.btn-sync {
+  background: var(--blue);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  padding: 10px 16px;
+  min-height: 44px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.btn-sync:disabled {
+  opacity: 0.7;
+}
+
 /* ---------- Sync banner ---------- */
 .sync-banner {
   background: #fff8e1;
@@ -1010,7 +1025,8 @@ select {
     font-size: 12px;
     padding: 5px 10px;
   }
-  .btn-logout {
+  .btn-logout,
+  .btn-sync {
     padding: 8px 12px;
     font-size: 14px;
     min-height: 40px;
