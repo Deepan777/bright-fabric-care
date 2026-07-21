@@ -1,3 +1,8 @@
+import { useState } from 'react';
+import { buildReceiptBytes } from '../escpos.js';
+import { printBytes, bluetoothSupported } from '../btPrint.js';
+import { useToast } from '../toast.jsx';
+
 function fmtDate(d) {
   if (!d) return '';
   try {
@@ -26,6 +31,27 @@ function fmtTime(d) {
 export default function PrintBill({ order, onBack }) {
   const items = (order.items || []).filter((i) => i.quantity > 0);
   const paid = order.payment_status === 'paid';
+  const [btBusy, setBtBusy] = useState(false);
+  const notify = useToast();
+
+  // Streams raw ESC/POS bytes straight to the Bluetooth printer — no
+  // Chrome print dialog involved. First tap shows the device chooser
+  // (pick the printer, e.g. "MPT-III"); after that it reconnects silently.
+  async function bluetoothPrint() {
+    setBtBusy(true);
+    try {
+      await printBytes(buildReceiptBytes(order));
+      notify('Sent to printer', 'success');
+    } catch (err) {
+      if (err?.name === 'NotFoundError') {
+        notify('No printer selected', 'info');
+      } else {
+        notify(err.message || 'Bluetooth print failed', 'error');
+      }
+    } finally {
+      setBtBusy(false);
+    }
+  }
 
   return (
     <div className="print-screen">
@@ -36,6 +62,15 @@ export default function PrintBill({ order, onBack }) {
         <button className="btn-primary" onClick={() => window.print()}>
           🖨 Print
         </button>
+        {bluetoothSupported() && (
+          <button
+            className="btn-primary"
+            onClick={bluetoothPrint}
+            disabled={btBusy}
+          >
+            {btBusy ? 'Sending…' : '📶 Bluetooth Print'}
+          </button>
+        )}
       </div>
 
       <div className="bill">
