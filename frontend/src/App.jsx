@@ -15,6 +15,7 @@ import { api } from './api.js';
 import { cacheItems } from './db.js';
 import { loadItems } from './dataSync.js';
 import { refreshPendingCount } from './sync.js';
+import { warmUpPrinter } from './btPrint.js';
 import { useToast } from './toast.jsx';
 
 export default function App() {
@@ -44,6 +45,10 @@ export default function App() {
     // touching the internet; the app only syncs when the end-of-day
     // Sync button in the header is tapped.
     refreshPendingCount();
+    // Best-effort, silent — if a printer was paired before and is already
+    // switched on, this warms the Bluetooth connection up now so printing
+    // the first bill of the day feels instant instead of waiting to connect.
+    warmUpPrinter();
     return () => {
       cancelled = true;
     };

@@ -900,9 +900,22 @@ select {
 
 .print-toolbar {
   display: flex;
+  align-items: center;
   gap: 12px;
   margin-bottom: 16px;
+  flex-wrap: wrap;
 }
+
+.print-status {
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.print-status.connecting { background: var(--blue-soft); color: var(--blue); }
+.print-status.done { background: #e8f5e9; color: var(--green); }
+.print-status.error { background: #fdecea; color: var(--red); }
 
 .bill {
   width: 72mm;

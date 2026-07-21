@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { buildReceiptBytes } from '../escpos.js';
-import { printBytes, bluetoothSupported } from '../btPrint.js';
+import { printTwice, bluetoothSupported, hasPairedPrinter } from '../btPrint.js';
 import { useToast } from '../toast.jsx';
 
 function fmtDate(d) {
@@ -28,30 +28,51 @@ function fmtTime(d) {
 // Block/Room No are enlarged since workers scan them at a glance, and the
 // bill always prints at least 8 inches long regardless of item count —
 // see .bill-spacer / min-height in styles.css.
+// Prints automatically the moment this screen opens — no button tap, no
+// Bluetooth chooser. Workers just need the printer switched on; pairing
+// happens once, in advance, from Admin > Bluetooth Printer. Every bill
+// prints 2 copies (records + customer).
 export default function PrintBill({ order, onBack }) {
   const items = (order.items || []).filter((i) => i.quantity > 0);
   const paid = order.payment_status === 'paid';
-  const [btBusy, setBtBusy] = useState(false);
+  // status: idle | checking | unpaired | connecting | printing | done | error | unavailable
+  const [status, setStatus] = useState('idle');
+  const [copyNum, setCopyNum] = useState(0);
+  const [errorMsg, setErrorMsg] = useState('');
   const notify = useToast();
+  const startedOnce = useRef(false);
 
-  // Streams raw ESC/POS bytes straight to the Bluetooth printer — no
-  // Chrome print dialog involved. First tap shows the device chooser
-  // (pick the printer, e.g. "MPT-III"); after that it reconnects silently.
-  async function bluetoothPrint() {
-    setBtBusy(true);
+  async function runAutoPrint() {
+    if (!bluetoothSupported()) {
+      setStatus('unavailable');
+      return;
+    }
+    setStatus('checking');
+    const paired = await hasPairedPrinter();
+    if (!paired) {
+      setStatus('unpaired');
+      return;
+    }
+    setStatus('connecting');
     try {
-      await printBytes(buildReceiptBytes(order));
-      notify('Sent to printer', 'success');
+      await printTwice(buildReceiptBytes(order), (n) => {
+        setCopyNum(n);
+        setStatus('printing');
+      });
+      setStatus('done');
+      notify('Printed 2 copies', 'success');
     } catch (err) {
-      if (err?.name === 'NotFoundError') {
-        notify('No printer selected', 'info');
-      } else {
-        notify(err.message || 'Bluetooth print failed', 'error');
-      }
-    } finally {
-      setBtBusy(false);
+      setStatus('error');
+      setErrorMsg(err.message || 'Printing failed');
     }
   }
+
+  useEffect(() => {
+    if (startedOnce.current) return;
+    startedOnce.current = true;
+    runAutoPrint();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="print-screen">
@@ -59,19 +80,47 @@ export default function PrintBill({ order, onBack }) {
         <button className="btn-secondary" onClick={onBack}>
           ← Back
         </button>
-        <button className="btn-primary" onClick={() => window.print()}>
-          🖨 Print
-        </button>
-        {bluetoothSupported() && (
-          <button
-            className="btn-primary"
-            onClick={bluetoothPrint}
-            disabled={btBusy}
-          >
-            {btBusy ? 'Sending…' : '📶 Bluetooth Print'}
+
+        {(status === 'checking' || status === 'connecting') && (
+          <div className="print-status connecting">🔄 Connecting to printer…</div>
+        )}
+        {status === 'printing' && (
+          <div className="print-status connecting">
+            🖨 Printing copy {copyNum} of 2…
+          </div>
+        )}
+        {status === 'done' && (
+          <div className="print-status done">✅ Printed — 2 copies done</div>
+        )}
+        {status === 'error' && (
+          <div className="print-status error">
+            ⚠ Printer not found. Switch it on, keep it nearby, and tap Retry.
+          </div>
+        )}
+        {status === 'unpaired' && (
+          <div className="print-status error">
+            ⚠ Printer not set up yet. Ask Admin to pair it once (Admin &gt; Bluetooth Printer).
+          </div>
+        )}
+
+        {(status === 'error' || status === 'done') && (
+          <button className="btn-primary" onClick={runAutoPrint}>
+            🖨 {status === 'done' ? 'Print Again' : 'Retry'}
           </button>
         )}
+
+        {/* Always-available fallback — opens the system print dialog
+            (works with a USB-connected printer, no Bluetooth needed). */}
+        <button className="btn-secondary" onClick={() => window.print()}>
+          Print via USB
+        </button>
       </div>
+
+      {errorMsg && status === 'error' && (
+        <p style={{ color: '#666', fontSize: 13, marginTop: -8, marginBottom: 8 }}>
+          {errorMsg}
+        </p>
+      )}
 
       <div className="bill">
         <div className="shop-name">THE BRIGHT FABRIC CARE</div>

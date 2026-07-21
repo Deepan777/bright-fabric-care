@@ -13,6 +13,13 @@ import {
 import { loadSettings, loadDashboard, forceRefreshAll } from '../dataSync.js';
 import { syncNow } from '../sync.js';
 import { useToast } from '../toast.jsx';
+import {
+  bluetoothSupported,
+  pairPrinter,
+  hasPairedPrinter,
+  pairedPrinterName,
+  forgetPrinter,
+} from '../btPrint.js';
 
 function fmtDateTime(d) {
   if (!d) return 'never';
@@ -111,6 +118,12 @@ export default function Admin({ items, onItemsChanged }) {
   const [dataRefreshedAt, setDataRefreshedAt] = useState(null);
   const [refreshingAll, setRefreshingAll] = useState(false);
 
+  // Bluetooth printer — one-time pairing lives here so daily staff never
+  // see a device chooser; see btPrint.js for the auto-reconnect logic.
+  const [printerPaired, setPrinterPaired] = useState(false);
+  const [printerName, setPrinterName] = useState('');
+  const [printerBusy, setPrinterBusy] = useState(false);
+
   useEffect(() => {
     setRows(items.map((i) => ({ ...i })));
   }, [items]);
@@ -118,8 +131,38 @@ export default function Admin({ items, onItemsChanged }) {
   useEffect(() => {
     if (!unlocked) return;
     refreshMeta();
+    refreshPrinterStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unlocked]);
+
+  async function refreshPrinterStatus() {
+    const paired = await hasPairedPrinter();
+    setPrinterPaired(paired);
+    setPrinterName(paired ? await pairedPrinterName() : '');
+  }
+
+  async function doPairPrinter() {
+    setPrinterBusy(true);
+    try {
+      const name = await pairPrinter();
+      setPrinterPaired(true);
+      setPrinterName(name);
+      notify(`Paired with ${name}`, 'success');
+    } catch (err) {
+      if (err?.name !== 'NotFoundError') {
+        notify(err.message || 'Pairing failed', 'error');
+      }
+    } finally {
+      setPrinterBusy(false);
+    }
+  }
+
+  async function doForgetPrinter() {
+    await forgetPrinter();
+    setPrinterPaired(false);
+    setPrinterName('');
+    notify('Printer forgotten', 'info');
+  }
 
   // Cache-first — instant, at most one background network touch per day.
   async function refreshMeta() {
@@ -429,6 +472,48 @@ export default function Admin({ items, onItemsChanged }) {
           Save PINs
         </button>
       </div>
+
+      {/* Bluetooth printer — one-time setup so workers never have to connect
+          it themselves. */}
+      {bluetoothSupported() && (
+        <div className="admin-section">
+          <div className="section-title">Bluetooth Printer</div>
+          <p style={{ color: '#666' }}>
+            One-time setup, done here only. Switch the printer on, tap
+            "Pair Printer" below, and choose it from the list (it usually
+            shows up as "MPT-III"). After that, Shop Counter and Block
+            Collection never need to connect anything — bills print by
+            themselves as soon as the printer is switched on.
+          </p>
+          <p style={{ fontWeight: 700 }}>
+            Status:{' '}
+            {printerPaired ? (
+              <span style={{ color: 'var(--green)' }}>
+                ✅ Paired{printerName ? ` — ${printerName}` : ''}
+              </span>
+            ) : (
+              <span style={{ color: 'var(--red)' }}>⚠ Not paired yet</span>
+            )}
+          </p>
+          <button
+            className="btn-primary"
+            style={{ width: 'auto' }}
+            onClick={doPairPrinter}
+            disabled={printerBusy}
+          >
+            {printerBusy ? 'Pairing…' : printerPaired ? 'Re-pair Printer' : 'Pair Printer'}
+          </button>
+          {printerPaired && (
+            <button
+              className="btn-secondary"
+              style={{ width: 'auto', marginLeft: 8 }}
+              onClick={doForgetPrinter}
+            >
+              Forget Printer
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Unsynced orders */}
       <div className="admin-section">
