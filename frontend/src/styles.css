@@ -522,6 +522,70 @@ select {
   min-height: 48px;
 }
 
+/* Date grouping — each day gets its own clickable header with a running
+   total, so a day's story reads at a glance without opening every bill. */
+.day-group {
+  margin-bottom: 16px;
+}
+
+.day-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--blue-soft);
+  border-radius: 10px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  flex-wrap: wrap;
+  user-select: none;
+  transition: background 0.15s ease;
+}
+
+.day-header:hover {
+  background: #d5e8fb;
+}
+
+.day-group.is-today .day-header {
+  background: var(--navy);
+}
+
+.day-header .day-label {
+  font-weight: 800;
+  color: var(--navy);
+  font-size: 15px;
+}
+
+.day-group.is-today .day-header .day-label {
+  color: #fff;
+}
+
+.day-header .day-stats {
+  font-size: 13px;
+  color: #333;
+  font-weight: 600;
+  flex: 1;
+  text-align: right;
+  min-width: 180px;
+}
+
+.day-group.is-today .day-header .day-stats {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.day-header .day-toggle {
+  font-size: 14px;
+  color: var(--blue);
+  font-weight: 700;
+  width: 16px;
+  text-align: center;
+}
+
+.day-group.is-today .day-header .day-toggle {
+  color: #fff;
+}
+
 .order-row {
   border: 1px solid var(--border);
   border-radius: 12px;
