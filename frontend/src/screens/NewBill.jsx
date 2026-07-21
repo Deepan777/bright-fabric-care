@@ -3,10 +3,7 @@ import { api } from '../api.js';
 import { nextBillNumber, saveLocalOrder } from '../db.js';
 import { syncNow } from '../sync.js';
 import { useToast } from '../toast.jsx';
-
-const BLOCKS = Array.from({ length: 26 }, (_, i) =>
-  `${String.fromCharCode(65 + i)} Block`
-);
+import { BLOCKS } from '../blocks.js';
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);

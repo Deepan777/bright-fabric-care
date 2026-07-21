@@ -1,9 +1,6 @@
 import { useState } from 'react';
 import { api } from '../api.js';
-
-const BLOCKS = Array.from({ length: 26 }, (_, i) =>
-  `${String.fromCharCode(65 + i)} Block`
-);
+import { BLOCKS } from '../blocks.js';
 
 function fmtDate(d) {
   if (!d) return '';
