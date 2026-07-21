@@ -8,6 +8,7 @@ import {
   cacheSettings,
   getLastFetched,
   removeCachedOrder,
+  getCachedCloudOrders,
 } from '../db.js';
 import { loadSettings, loadDashboard, forceRefreshAll } from '../dataSync.js';
 import { syncNow } from '../sync.js';
@@ -39,6 +40,48 @@ function currentMonthStr() {
   return new Date().toISOString().slice(0, 7);
 }
 
+// Matches the backend's date/month/year filtering, used for the offline
+// fallback when the network call for Bill Summary fails.
+function matchesPeriod(order, mode, date, month, year) {
+  const created = order.created_at ? new Date(order.created_at) : null;
+  if (!created) return false;
+  if (mode === 'day') return created.toISOString().slice(0, 10) === date;
+  if (mode === 'month') return created.toISOString().slice(0, 7) === month;
+  if (mode === 'year') return String(created.getFullYear()) === String(year);
+  return true;
+}
+
+function clothesCount(order) {
+  return (order.items || []).reduce((s, it) => s + Number(it.quantity || 0), 0);
+}
+
+// Bills / revenue (paid) / outstanding (unpaid) / clothes, split by source
+// plus a combined row — lets the admin verify Shop and Block Collection
+// totals separately or together at a glance.
+function summarizeBySource(orders) {
+  const buckets = { shop: [], block_collection: [] };
+  for (const o of orders) {
+    (buckets[o.source] ||= []).push(o);
+  }
+  function stats(list) {
+    return {
+      bills: list.length,
+      revenue: list
+        .filter((o) => o.payment_status === 'paid')
+        .reduce((s, o) => s + Number(o.total_amount), 0),
+      outstanding: list
+        .filter((o) => o.payment_status === 'unpaid')
+        .reduce((s, o) => s + Number(o.total_amount), 0),
+      clothes: list.reduce((s, o) => s + clothesCount(o), 0),
+    };
+  }
+  return {
+    shop: stats(buckets.shop),
+    block: stats(buckets.block_collection),
+    combined: stats(orders),
+  };
+}
+
 export default function Admin({ items, onItemsChanged }) {
   const session = getSession();
   const [unlocked, setUnlocked] = useState(session?.role === 'admin');
@@ -60,7 +103,9 @@ export default function Admin({ items, onItemsChanged }) {
   const [summaryDate, setSummaryDate] = useState(todayStr());
   const [summaryMonth, setSummaryMonth] = useState(currentMonthStr());
   const [summaryYear, setSummaryYear] = useState(String(new Date().getFullYear()));
+  const [summarySource, setSummarySource] = useState('all');
   const [summaryOrders, setSummaryOrders] = useState(null);
+  const [summaryOffline, setSummaryOffline] = useState(false);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [confirmDeleteOrder, setConfirmDeleteOrder] = useState(null);
   const [dataRefreshedAt, setDataRefreshedAt] = useState(null);
@@ -197,6 +242,9 @@ export default function Admin({ items, onItemsChanged }) {
     }
   }
 
+  // Always fetches the FULL period (no source filter) so the Shop / Block /
+  // Combined breakdown below is always complete; the source dropdown only
+  // filters which bills show in the detail table.
   async function loadSummary() {
     setSummaryLoading(true);
     try {
@@ -206,8 +254,21 @@ export default function Admin({ items, onItemsChanged }) {
       if (summaryMode === 'year') params.year = summaryYear;
       const orders = await api.getOrders(params);
       setSummaryOrders(orders);
+      setSummaryOffline(false);
     } catch (err) {
-      notify(err.message || 'Could not load summary', 'error');
+      // Offline fallback — filter the last cached full order list locally
+      // so the summary still works without a connection.
+      const cached = await getCachedCloudOrders();
+      if (cached.length) {
+        const filtered = cached.filter((o) =>
+          matchesPeriod(o, summaryMode, summaryDate, summaryMonth, summaryYear)
+        );
+        setSummaryOrders(filtered);
+        setSummaryOffline(true);
+        notify('Offline — showing last synced data', 'info');
+      } else {
+        notify(err.message || 'Could not load summary', 'error');
+      }
     } finally {
       setSummaryLoading(false);
     }
@@ -416,9 +477,12 @@ export default function Admin({ items, onItemsChanged }) {
         </p>
       </div>
 
-      {/* Bill summary by day / month / year, with per-bill delete */}
+      {/* Bill summary by day / month / year, split Shop vs Block vs Combined */}
       <div className="admin-section">
-        <div className="section-title">Bill Summary</div>
+        <div className="section-title section-title-row">
+          <span>Bill Summary</span>
+          {summaryOffline && <span className="badge unpaid">Offline (cached)</span>}
+        </div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
           <select value={summaryMode} onChange={(e) => setSummaryMode(e.target.value)}>
             <option value="day">By Day</option>
@@ -454,31 +518,60 @@ export default function Admin({ items, onItemsChanged }) {
 
         {summaryOrders && summaryOrders.length > 0 && (
           <>
-            <div className="split-row">
-              <div className="split-card">
-                <div className="label">Bills</div>
-                <div className="value">{summaryOrders.length}</div>
-              </div>
-              <div className="split-card">
-                <div className="label">Revenue (paid)</div>
-                <div className="value">
-                  ₹
-                  {summaryOrders
-                    .filter((o) => o.payment_status === 'paid')
-                    .reduce((s, o) => s + Number(o.total_amount), 0)
-                    .toFixed(0)}
-                </div>
-              </div>
-              <div className="split-card">
-                <div className="label">Outstanding</div>
-                <div className="value">
-                  ₹
-                  {summaryOrders
-                    .filter((o) => o.payment_status === 'unpaid')
-                    .reduce((s, o) => s + Number(o.total_amount), 0)
-                    .toFixed(0)}
-                </div>
-              </div>
+            <div className="table-scroll">
+              <table className="data-table breakdown-table">
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th>Bills</th>
+                    <th>Clothes</th>
+                    <th>Revenue (paid)</th>
+                    <th>Outstanding</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    const b = summarizeBySource(summaryOrders);
+                    return (
+                      <>
+                        <tr>
+                          <td className="row-label">🧺 Shop Counter</td>
+                          <td>{b.shop.bills}</td>
+                          <td>{b.shop.clothes}</td>
+                          <td>₹{b.shop.revenue.toFixed(0)}</td>
+                          <td>₹{b.shop.outstanding.toFixed(0)}</td>
+                        </tr>
+                        <tr>
+                          <td className="row-label">🚪 Block Collection</td>
+                          <td>{b.block.bills}</td>
+                          <td>{b.block.clothes}</td>
+                          <td>₹{b.block.revenue.toFixed(0)}</td>
+                          <td>₹{b.block.outstanding.toFixed(0)}</td>
+                        </tr>
+                        <tr className="row-combined">
+                          <td className="row-label">Combined</td>
+                          <td>{b.combined.bills}</td>
+                          <td>{b.combined.clothes}</td>
+                          <td>₹{b.combined.revenue.toFixed(0)}</td>
+                          <td>₹{b.combined.outstanding.toFixed(0)}</td>
+                        </tr>
+                      </>
+                    );
+                  })()}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="section-title-row" style={{ marginTop: 18, marginBottom: 10 }}>
+              <span style={{ fontWeight: 700, color: 'var(--navy)' }}>Bills</span>
+              <select
+                value={summarySource}
+                onChange={(e) => setSummarySource(e.target.value)}
+              >
+                <option value="all">All Sources</option>
+                <option value="shop">Shop Counter only</option>
+                <option value="block_collection">Block Collection only</option>
+              </select>
             </div>
 
             <div className="table-scroll">
@@ -486,6 +579,7 @@ export default function Admin({ items, onItemsChanged }) {
                 <thead>
                   <tr>
                     <th>Bill No</th>
+                    <th>Source</th>
                     <th>Block / Room</th>
                     <th>Amount</th>
                     <th>Status</th>
@@ -494,34 +588,43 @@ export default function Admin({ items, onItemsChanged }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {summaryOrders.map((o) => (
-                    <tr key={o.id}>
-                      <td>{o.bill_number}</td>
-                      <td>
-                        {o.block || '—'} {o.room_no || ''}
-                      </td>
-                      <td>₹{Number(o.total_amount).toFixed(0)}</td>
-                      <td>
-                        <span className={`badge ${o.order_status}`}>
-                          {o.order_status}
-                        </span>{' '}
-                        <span className={`badge ${o.payment_status}`}>
-                          {o.payment_status}
-                          {o.payment_method ? ` (${o.payment_method.toUpperCase()})` : ''}
-                        </span>
-                      </td>
-                      <td>{fmtDate(o.created_at)}</td>
-                      <td>
-                        <button
-                          className="btn-danger"
-                          style={{ padding: '8px 12px', minHeight: 36, flex: 'none' }}
-                          onClick={() => setConfirmDeleteOrder(o)}
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {summaryOrders
+                    .filter((o) => summarySource === 'all' || o.source === summarySource)
+                    .map((o) => (
+                      <tr key={o.id}>
+                        <td>{o.bill_number}</td>
+                        <td>
+                          <span className={`badge ${o.source}`}>
+                            {o.source === 'block_collection' ? 'Block' : 'Shop'}
+                          </span>
+                        </td>
+                        <td>
+                          {o.block || '—'} {o.room_no || ''}
+                        </td>
+                        <td>₹{Number(o.total_amount).toFixed(0)}</td>
+                        <td>
+                          <span className={`badge ${o.order_status}`}>
+                            {o.order_status}
+                          </span>{' '}
+                          <span className={`badge ${o.payment_status}`}>
+                            {o.payment_status}
+                            {o.payment_method ? ` (${o.payment_method.toUpperCase()})` : ''}
+                          </span>
+                        </td>
+                        <td>{fmtDate(o.created_at)}</td>
+                        <td>
+                          <button
+                            className="btn-danger"
+                            style={{ padding: '8px 12px', minHeight: 36, flex: 'none' }}
+                            onClick={() => setConfirmDeleteOrder(o)}
+                            disabled={summaryOffline}
+                            title={summaryOffline ? 'Reconnect to delete bills' : ''}
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>

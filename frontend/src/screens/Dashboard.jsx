@@ -134,8 +134,12 @@ export default function Dashboard() {
         <span style={{ fontSize: 13, color: '#666' }}>
           Updated: {fmtDateTime(lastUpdated)}
         </span>
-        <button className="action-btn" onClick={refreshNow} disabled={refreshing}>
-          {refreshing ? 'Refreshing…' : '↻ Refresh'}
+        <button
+          className={`action-btn${refreshing ? ' refreshing' : ''}`}
+          onClick={refreshNow}
+          disabled={refreshing}
+        >
+          <span className="refresh-icon">↻</span> {refreshing ? 'Refreshing…' : 'Refresh'}
         </button>
       </div>
 
