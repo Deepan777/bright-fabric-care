@@ -15,6 +15,28 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Removes the browser's ~300ms "wait for double-tap-to-zoom" delay so every
+   tap on a button, card, or link registers instantly — the single biggest
+   fix for the app feeling laggy on tablets. */
+button,
+a,
+select,
+.item-card,
+.role-btn,
+.order-row .row-head,
+.day-header,
+.tabbar button {
+  touch-action: manipulation;
+}
+
+/* Honour the OS "reduce motion" setting and keep transitions cheap. */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 html,
 body {
   margin: 0;
@@ -310,7 +332,7 @@ select {
   padding: 12px;
   background: #fff;
   opacity: 0.55;
-  transition: all 0.12s;
+  transition: opacity 0.12s ease, border-color 0.12s ease, background 0.12s ease;
 }
 
 .item-card.active {
@@ -592,6 +614,11 @@ select {
   padding: 14px;
   margin-bottom: 10px;
   background: #fff;
+  /* Skips layout/paint for rows scrolled off-screen — keeps long day lists
+     smooth to scroll on low-end tablets. The estimate reserves scroll space
+     so the scrollbar doesn't jump. */
+  content-visibility: auto;
+  contain-intrinsic-size: 0 76px;
 }
 
 .order-row .row-head {
@@ -709,14 +736,7 @@ select {
   padding: 18px;
   color: #fff;
   background: var(--navy);
-  box-shadow: 0 2px 10px rgba(26, 35, 126, 0.18);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-  animation: fadeUp 0.25s ease both;
-}
-
-.stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(26, 35, 126, 0.24);
+  box-shadow: 0 2px 8px rgba(26, 35, 126, 0.15);
 }
 
 .stat-card.blue { background: var(--blue); }
@@ -748,13 +768,6 @@ select {
   border-radius: 12px;
   padding: 14px;
   background: #fff;
-  transition: box-shadow 0.15s ease, transform 0.15s ease;
-  animation: fadeUp 0.25s ease both;
-}
-
-.split-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  transform: translateY(-1px);
 }
 
 .split-card .label {
@@ -766,11 +779,6 @@ select {
   font-size: 22px;
   font-weight: 800;
   color: var(--navy);
-}
-
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 
 /* Pure CSS bar chart */
@@ -888,11 +896,17 @@ select {
   padding: 16px;
   margin-bottom: 18px;
   background: #fff;
-  transition: box-shadow 0.15s ease;
 }
 
-.admin-section:hover {
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+.setup-steps {
+  margin: 4px 0 14px;
+  padding-left: 22px;
+  color: #333;
+  line-height: 1.7;
+}
+
+.setup-steps li {
+  margin-bottom: 6px;
 }
 
 .spinner-wrap {
@@ -980,6 +994,15 @@ select {
 .print-status.connecting { background: var(--blue-soft); color: var(--blue); }
 .print-status.done { background: #e8f5e9; color: var(--green); }
 .print-status.error { background: #fdecea; color: var(--red); }
+
+/* The main print action — deliberately large and unmissable so counter
+   staff always know the one button to tap. */
+.btn-print-big {
+  width: auto;
+  font-size: 20px;
+  padding: 16px 32px;
+  min-height: 60px;
+}
 
 .bill {
   width: 72mm;
