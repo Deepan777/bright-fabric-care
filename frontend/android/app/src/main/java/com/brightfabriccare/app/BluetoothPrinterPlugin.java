@@ -24,6 +24,7 @@ import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 
 import java.io.OutputStream;
+import java.lang.reflect.Method;
 import java.util.Set;
 import java.util.UUID;
 
@@ -192,12 +193,29 @@ public class BluetoothPrinterPlugin extends Plugin {
 
         // Socket connect + write must not run on the UI thread.
         new Thread(() -> {
-            BluetoothSocket socket = null;
+            byte[] data;
             try {
-                byte[] data = Base64.decode(base64, Base64.DEFAULT);
-                BluetoothDevice device = adapter.getRemoteDevice(address);
-                socket = device.createRfcommSocketToServiceRecord(SPP_UUID);
-                socket.connect();
+                data = Base64.decode(base64, Base64.DEFAULT);
+            } catch (Exception e) {
+                call.reject("Bad print data");
+                return;
+            }
+
+            BluetoothDevice device;
+            try {
+                device = adapter.getRemoteDevice(address);
+            } catch (Exception e) {
+                call.reject("That printer is no longer paired. Re-pair it in Settings > Bluetooth.");
+                return;
+            }
+
+            BluetoothSocket socket = openSocket(device);
+            if (socket == null) {
+                call.reject("Could not reach the printer. Switch it on, keep it nearby, and make sure it is paired.");
+                return;
+            }
+
+            try {
                 OutputStream out = socket.getOutputStream();
                 out.write(data);
                 out.flush();
@@ -213,9 +231,37 @@ public class BluetoothPrinterPlugin extends Plugin {
                 call.reject("Bluetooth permission is needed to print");
             } catch (Exception e) {
                 closeQuietly(socket);
-                call.reject("Could not reach the printer. Switch it on and keep it nearby.");
+                call.reject("Printer connected but did not accept the receipt. Try again.");
             }
         }).start();
+    }
+
+    /**
+     * Opens an RFCOMM socket, trying two ways. Many cheap ESC/POS printers do
+     * not advertise the SPP service record, so the standard
+     * createRfcommSocketToServiceRecord() connect fails — the hidden
+     * createRfcommSocket(channel 1) call is the well-known workaround.
+     * Returns a connected socket, or null if both attempts fail.
+     */
+    private BluetoothSocket openSocket(BluetoothDevice device) {
+        // Attempt 1: standard, secure SPP.
+        try {
+            BluetoothSocket s = device.createRfcommSocketToServiceRecord(SPP_UUID);
+            s.connect();
+            return s;
+        } catch (Exception e1) {
+            // fall through to the reflection fallback
+        }
+        // Attempt 2: hidden createRfcommSocket(1) — works with most no-name
+        // thermal printers that reject the first method.
+        try {
+            Method m = device.getClass().getMethod("createRfcommSocket", int.class);
+            BluetoothSocket s = (BluetoothSocket) m.invoke(device, 1);
+            s.connect();
+            return s;
+        } catch (Exception e2) {
+            return null;
+        }
     }
 
     private void closeQuietly(BluetoothSocket s) {

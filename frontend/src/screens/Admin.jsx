@@ -501,6 +501,19 @@ export default function Admin({ items, onItemsChanged }) {
       <div className="admin-section">
         <div className="section-title">Printer Setup</div>
 
+        <div
+          className="print-status"
+          style={{
+            background: native ? '#e8f5e9' : '#fff4e5',
+            color: native ? 'var(--green)' : 'var(--orange)',
+            marginBottom: 12,
+          }}
+        >
+          {native
+            ? '✓ Running as the installed app — prints directly over Bluetooth'
+            : '● Running as a website in the browser — install the app for direct printing'}
+        </div>
+
         {native ? (
           <>
             <p style={{ color: '#666' }}>
