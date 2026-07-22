@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { buildReceiptBytes } from '../escpos.js';
-import { printViaRawBT, doubleCopies, isAndroid } from '../rawbt.js';
+import { printViaRawBT, doubleCopies, preferRawBT } from '../rawbt.js';
 import { useToast } from '../toast.jsx';
 
 function fmtDate(d) {
@@ -37,7 +37,9 @@ function fmtTime(d) {
 export default function PrintBill({ order, onBack }) {
   const items = (order.items || []).filter((i) => i.quantity > 0);
   const paid = order.payment_status === 'paid';
-  const android = isAndroid();
+  // On the counter tablets/phones the thermal (RawBT) printer is the main
+  // path; only a genuine desktop with a USB printer uses the system dialog.
+  const useBluetooth = preferRawBT();
   const [sent, setSent] = useState(false);
   const notify = useToast();
   const autoFired = useRef(false);
@@ -50,7 +52,7 @@ export default function PrintBill({ order, onBack }) {
   }
 
   useEffect(() => {
-    if (!android || autoFired.current) return;
+    if (!useBluetooth || autoFired.current) return;
     autoFired.current = true;
     // Let the receipt paint first, then hand off to RawBT. The hand-off
     // rides the "Generate Bill" tap's activation, so Android allows it.
@@ -69,24 +71,22 @@ export default function PrintBill({ order, onBack }) {
           ← Back
         </button>
 
-        {android ? (
-          <button className="btn-primary btn-print-big" onClick={sendToPrinter}>
-            🖨 {sent ? 'Print Again' : 'Print 2 Copies'}
-          </button>
+        {useBluetooth ? (
+          <>
+            {/* The one main action on a counter device: straight to the
+                Bluetooth thermal printer via RawBT — never the system dialog. */}
+            <button className="btn-primary btn-print-big" onClick={sendToPrinter}>
+              🖨 {sent ? 'Print Again' : 'Print 2 Copies'}
+            </button>
+          </>
         ) : (
           <button className="btn-primary btn-print-big" onClick={() => window.print()}>
             🖨 Print
           </button>
         )}
-
-        {/* Secondary path: the browser's own print dialog (USB printer, or
-            saving a PDF). Kept small so it never confuses the main flow. */}
-        <button className="btn-secondary" onClick={() => window.print()}>
-          Other print
-        </button>
       </div>
 
-      {android && sent && (
+      {useBluetooth && sent && (
         <div className="print-status done">
           ✅ Sent 2 copies to the printer. If nothing came out, switch the
           printer on and tap “Print Again”.

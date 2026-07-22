@@ -13,7 +13,12 @@ import {
 import { loadSettings, loadDashboard, forceRefreshAll } from '../dataSync.js';
 import { syncNow } from '../sync.js';
 import { useToast } from '../toast.jsx';
-import { printViaRawBT, testPrintBytes, isAndroid } from '../rawbt.js';
+import {
+  printViaRawBT,
+  testPrintBytes,
+  getPrintMode,
+  setPrintMode,
+} from '../rawbt.js';
 
 function fmtDateTime(d) {
   if (!d) return 'never';
@@ -111,6 +116,7 @@ export default function Admin({ items, onItemsChanged }) {
   const [confirmDeleteOrder, setConfirmDeleteOrder] = useState(null);
   const [dataRefreshedAt, setDataRefreshedAt] = useState(null);
   const [refreshingAll, setRefreshingAll] = useState(false);
+  const [printMode, setPrintModeState] = useState(getPrintMode());
 
   useEffect(() => {
     setRows(items.map((i) => ({ ...i })));
@@ -125,6 +131,19 @@ export default function Admin({ items, onItemsChanged }) {
   function testPrint() {
     printViaRawBT(testPrintBytes());
     notify('Test sent to printer', 'success');
+  }
+
+  function changePrintMode(mode) {
+    setPrintMode(mode);
+    setPrintModeState(mode);
+    notify(
+      mode === 'rawbt'
+        ? 'This device will print to the Bluetooth printer'
+        : mode === 'system'
+        ? 'This device will use the system print dialog'
+        : 'Printer type set to automatic',
+      'success'
+    );
   }
 
   // Cache-first — instant, at most one background network touch per day.
@@ -457,8 +476,11 @@ export default function Admin({ items, onItemsChanged }) {
             <strong>0000</strong> or <strong>1234</strong>.
           </li>
           <li>
-            Open RawBT once, and pick that printer as its device (RawBT →
-            settings → printer).
+            Open the <strong>RawBT</strong> app → its settings → <strong>select
+            the printer</strong> (MPT-III) and set it as the{' '}
+            <strong>default / connected printer</strong>. This is the important
+            step — if RawBT has no default printer it shows a “choose printer”
+            screen every time instead of printing straight away.
           </li>
           <li>Tap “Print Test Receipt” below to confirm it works.</li>
         </ol>
@@ -469,13 +491,38 @@ export default function Admin({ items, onItemsChanged }) {
         >
           🖨 Print Test Receipt
         </button>
-        {!isAndroid() && (
-          <p style={{ color: 'var(--orange)', marginTop: 10, fontWeight: 600 }}>
-            Note: automatic Bluetooth printing works on Android phones/tablets.
-            On this device (not Android), use the “Print” button on a bill to
-            print through the system dialog to a USB printer.
+
+        {/* Per-device override — the escape hatch if auto-detection sends a
+            device to the wrong printer path. */}
+        <div className="print-mode">
+          <div className="print-mode-label">Printer type on this device:</div>
+          <div className="print-mode-options">
+            <button
+              className={printMode === 'auto' ? 'active' : ''}
+              onClick={() => changePrintMode('auto')}
+            >
+              Automatic
+            </button>
+            <button
+              className={printMode === 'rawbt' ? 'active' : ''}
+              onClick={() => changePrintMode('rawbt')}
+            >
+              Bluetooth printer (RawBT)
+            </button>
+            <button
+              className={printMode === 'system' ? 'active' : ''}
+              onClick={() => changePrintMode('system')}
+            >
+              USB / system dialog
+            </button>
+          </div>
+          <p style={{ color: '#666', fontSize: 13, marginTop: 8 }}>
+            Set this to <strong>Bluetooth printer</strong> on the counter
+            tablets/phones so bills always go straight to the thermal printer.
+            Use <strong>USB / system dialog</strong> only on a computer with a
+            cable-connected printer.
           </p>
-        )}
+        </div>
       </div>
 
       {/* Unsynced orders */}

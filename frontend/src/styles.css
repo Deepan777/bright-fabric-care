@@ -909,6 +909,39 @@ select {
   margin-bottom: 6px;
 }
 
+.print-mode {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.print-mode-label {
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 8px;
+}
+
+.print-mode-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.print-mode-options button {
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 2px solid var(--border);
+  background: #fff;
+  font-weight: 600;
+  min-height: 44px;
+}
+
+.print-mode-options button.active {
+  border-color: var(--navy);
+  background: var(--navy);
+  color: #fff;
+}
+
 .spinner-wrap {
   display: flex;
   flex-direction: column;

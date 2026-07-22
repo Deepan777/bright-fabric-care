@@ -22,6 +22,55 @@ export function isAndroid() {
   return typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
 }
 
+// Per-device print mode. Admin can force this on a device from Printer Setup:
+//   'rawbt'  -> always print through RawBT (the Bluetooth thermal printer)
+//   'system' -> always use the browser's print dialog (USB printer / PDF)
+//   'auto'   -> decide automatically (default)
+const LS_PRINT_MODE = 'bfc_print_mode';
+
+export function getPrintMode() {
+  try {
+    return localStorage.getItem(LS_PRINT_MODE) || 'auto';
+  } catch {
+    return 'auto';
+  }
+}
+
+export function setPrintMode(mode) {
+  try {
+    localStorage.setItem(LS_PRINT_MODE, mode);
+  } catch {
+    /* ignore */
+  }
+}
+
+// Should this device print through RawBT (the Bluetooth thermal printer)
+// rather than the browser's system print dialog?
+//
+// We deliberately do NOT trust the user-agent string alone. Chrome's
+// "Desktop site" toggle strips "Android" out of it, which used to make the
+// counter tablet fall through to the Android system print dialog (the
+// "choose a print service" screen) instead of the thermal printer. A touch
+// screen is the reliable signal that this is one of the counter tablets or
+// phones — and an explicit Admin override always wins.
+export function preferRawBT() {
+  const mode = getPrintMode();
+  if (mode === 'rawbt') return true;
+  if (mode === 'system') return false;
+
+  const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+  const hasTouch =
+    (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0) ||
+    (typeof window !== 'undefined' && 'ontouchstart' in window);
+  const looksMobile = /Android|iPhone|iPad|Mobile|Tablet/i.test(ua);
+  const looksDesktop = /Windows NT|Macintosh|CrOS/i.test(ua);
+
+  if (looksMobile) return true; // clearly a phone/tablet
+  if (looksDesktop && !hasTouch) return false; // clearly a desktop with a USB printer
+  if (hasTouch) return true; // touch device (incl. "Desktop site" tablets)
+  return false; // unknown, no touch -> assume desktop/USB
+}
+
 // Uint8Array -> base64, chunked so large receipts don't blow the call stack.
 function bytesToBase64(bytes) {
   let binary = '';
