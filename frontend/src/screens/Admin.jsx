@@ -19,6 +19,13 @@ import {
   getPrintMode,
   setPrintMode,
 } from '../rawbt.js';
+import {
+  isNativeApp,
+  btListPaired,
+  btPrint,
+  getSelectedPrinter,
+  setSelectedPrinter,
+} from '../native.js';
 
 function fmtDateTime(d) {
   if (!d) return 'never';
@@ -117,6 +124,11 @@ export default function Admin({ items, onItemsChanged }) {
   const [dataRefreshedAt, setDataRefreshedAt] = useState(null);
   const [refreshingAll, setRefreshingAll] = useState(false);
   const [printMode, setPrintModeState] = useState(getPrintMode());
+  // Native app printer selection.
+  const native = isNativeApp();
+  const [pairedList, setPairedList] = useState(null);
+  const [selectedPrinter, setSelectedPrinterState] = useState(getSelectedPrinter());
+  const [printerScanning, setPrinterScanning] = useState(false);
 
   useEffect(() => {
     setRows(items.map((i) => ({ ...i })));
@@ -129,8 +141,37 @@ export default function Admin({ items, onItemsChanged }) {
   }, [unlocked]);
 
   function testPrint() {
+    if (native) {
+      btPrint(testPrintBytes())
+        .then(() => notify('Test printed', 'success'))
+        .catch((err) => notify(err?.message || 'Test print failed', 'error'));
+      return;
+    }
     printViaRawBT(testPrintBytes());
     notify('Test sent to printer', 'success');
+  }
+
+  // Native app: load the printers already paired in Android settings so the
+  // admin can pick which one this device prints to.
+  async function scanPrinters() {
+    setPrinterScanning(true);
+    try {
+      const devices = await btListPaired();
+      setPairedList(devices);
+      if (devices.length === 0) {
+        notify('No paired devices — pair the printer in Android Settings first', 'info');
+      }
+    } catch (err) {
+      notify(err?.message || 'Could not read Bluetooth devices', 'error');
+    } finally {
+      setPrinterScanning(false);
+    }
+  }
+
+  function choosePrinter(device) {
+    setSelectedPrinter(device.address, device.name);
+    setSelectedPrinterState({ address: device.address, name: device.name });
+    notify(`Printer set: ${device.name || device.address}`, 'success');
   }
 
   function changePrintMode(mode) {
@@ -455,74 +496,130 @@ export default function Admin({ items, onItemsChanged }) {
         </button>
       </div>
 
-      {/* Printer setup — one-time, per tablet/phone. Uses the RawBT app so
-          the Classic Bluetooth printer auto-reconnects when switched on. */}
+      {/* Printer setup. Inside the installed app this is a direct Bluetooth
+          picker; on the plain website it explains the RawBT fallback. */}
       <div className="admin-section">
         <div className="section-title">Printer Setup</div>
-        <p style={{ color: '#666' }}>
-          Do this once on each phone/tablet that prints bills. After it’s
-          set up, staff just switch the printer on and bills print by
-          themselves — nothing to connect.
-        </p>
-        <ol className="setup-steps">
-          <li>
-            Install the free <strong>RawBT</strong> app from the Google Play
-            Store.
-          </li>
-          <li>
-            Switch the printer on. In the phone’s <strong>Settings →
-            Bluetooth</strong>, tap the printer (shows as{' '}
-            <strong>“MPT-III”</strong>) to pair it. PIN, if asked, is usually{' '}
-            <strong>0000</strong> or <strong>1234</strong>.
-          </li>
-          <li>
-            Open the <strong>RawBT</strong> app → its settings → <strong>select
-            the printer</strong> (MPT-III) and set it as the{' '}
-            <strong>default / connected printer</strong>. This is the important
-            step — if RawBT has no default printer it shows a “choose printer”
-            screen every time instead of printing straight away.
-          </li>
-          <li>Tap “Print Test Receipt” below to confirm it works.</li>
-        </ol>
-        <button
-          className="btn-primary"
-          style={{ width: 'auto' }}
-          onClick={testPrint}
-        >
-          🖨 Print Test Receipt
-        </button>
 
-        {/* Per-device override — the escape hatch if auto-detection sends a
-            device to the wrong printer path. */}
-        <div className="print-mode">
-          <div className="print-mode-label">Printer type on this device:</div>
-          <div className="print-mode-options">
+        {native ? (
+          <>
+            <p style={{ color: '#666' }}>
+              This device prints <strong>directly</strong> to the Bluetooth
+              printer — no other app. Do this once per tablet/phone:
+            </p>
+            <ol className="setup-steps">
+              <li>
+                Switch the printer on. In <strong>Settings → Bluetooth</strong>,
+                pair the printer (shows as <strong>“MPT-III”</strong>). PIN, if
+                asked, is usually <strong>0000</strong> or <strong>1234</strong>.
+              </li>
+              <li>Tap “Find Printers” below and choose it from the list.</li>
+              <li>Tap “Print Test Receipt” to confirm.</li>
+            </ol>
+
+            <p style={{ fontWeight: 700, marginBottom: 8 }}>
+              Selected printer:{' '}
+              {selectedPrinter ? (
+                <span style={{ color: 'var(--green)' }}>
+                  {selectedPrinter.name || selectedPrinter.address}
+                </span>
+              ) : (
+                <span style={{ color: 'var(--red)' }}>none yet</span>
+              )}
+            </p>
+
             <button
-              className={printMode === 'auto' ? 'active' : ''}
-              onClick={() => changePrintMode('auto')}
+              className="btn-primary"
+              style={{ width: 'auto', marginRight: 8 }}
+              onClick={scanPrinters}
+              disabled={printerScanning}
             >
-              Automatic
+              {printerScanning ? 'Finding…' : '🔍 Find Printers'}
             </button>
             <button
-              className={printMode === 'rawbt' ? 'active' : ''}
-              onClick={() => changePrintMode('rawbt')}
+              className="btn-secondary"
+              style={{ width: 'auto' }}
+              onClick={testPrint}
+              disabled={!selectedPrinter}
             >
-              Bluetooth printer (RawBT)
+              🖨 Print Test Receipt
             </button>
+
+            {pairedList && pairedList.length > 0 && (
+              <div className="printer-list">
+                {pairedList.map((d) => {
+                  const isSel = selectedPrinter?.address === d.address;
+                  return (
+                    <button
+                      key={d.address}
+                      className={`printer-row${isSel ? ' active' : ''}`}
+                      onClick={() => choosePrinter(d)}
+                    >
+                      <span>{d.name || '(unnamed device)'}</span>
+                      <span className="printer-addr">{d.address}</span>
+                      {isSel && <span className="printer-check">✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <p style={{ color: '#666' }}>
+              You’re using the website in a browser. For the best, most direct
+              printing, install <strong>The Bright Fabric Care app</strong> (APK)
+              on the tablet — it prints straight to the Bluetooth printer with
+              nothing in between. In the browser, printing uses the RawBT app:
+            </p>
+            <ol className="setup-steps">
+              <li>
+                Install the free <strong>RawBT</strong> app from the Play Store.
+              </li>
+              <li>
+                In <strong>Settings → Bluetooth</strong>, pair the printer
+                (shows as <strong>“MPT-III”</strong>; PIN <strong>0000</strong>/
+                <strong>1234</strong>).
+              </li>
+              <li>
+                Open <strong>RawBT</strong> → set that printer as its{' '}
+                <strong>default</strong> printer.
+              </li>
+              <li>Tap “Print Test Receipt” to confirm.</li>
+            </ol>
             <button
-              className={printMode === 'system' ? 'active' : ''}
-              onClick={() => changePrintMode('system')}
+              className="btn-primary"
+              style={{ width: 'auto' }}
+              onClick={testPrint}
             >
-              USB / system dialog
+              🖨 Print Test Receipt
             </button>
-          </div>
-          <p style={{ color: '#666', fontSize: 13, marginTop: 8 }}>
-            Set this to <strong>Bluetooth printer</strong> on the counter
-            tablets/phones so bills always go straight to the thermal printer.
-            Use <strong>USB / system dialog</strong> only on a computer with a
-            cable-connected printer.
-          </p>
-        </div>
+
+            <div className="print-mode">
+              <div className="print-mode-label">Printer type on this device:</div>
+              <div className="print-mode-options">
+                <button
+                  className={printMode === 'auto' ? 'active' : ''}
+                  onClick={() => changePrintMode('auto')}
+                >
+                  Automatic
+                </button>
+                <button
+                  className={printMode === 'rawbt' ? 'active' : ''}
+                  onClick={() => changePrintMode('rawbt')}
+                >
+                  Bluetooth printer (RawBT)
+                </button>
+                <button
+                  className={printMode === 'system' ? 'active' : ''}
+                  onClick={() => changePrintMode('system')}
+                >
+                  USB / system dialog
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Unsynced orders */}

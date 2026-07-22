@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { buildReceiptBytes } from '../escpos.js';
 import { printViaRawBT, doubleCopies, preferRawBT } from '../rawbt.js';
+import { isNativeApp, btPrint, getSelectedPrinter } from '../native.js';
 import { useToast } from '../toast.jsx';
 
 function fmtDate(d) {
@@ -28,41 +29,68 @@ function fmtTime(d) {
 // scan them at a glance, and the bill always prints at least 8 inches long
 // regardless of item count — see .bill-spacer / min-height in styles.css.
 //
-// Printing is automatic on Android: the moment this screen opens it hands
-// the receipt (2 copies) to the RawBT app, which relays it to the Bluetooth
-// printer. Staff never connect anything — they just keep the printer on.
-// A big "Print Again" button is always there in case they need another copy
-// or the printer was off. On Windows/desktop it falls back to the browser's
-// system print dialog for the USB printer.
+// Printing path:
+//   • Installed app (native): connects straight to the paired Bluetooth
+//     printer and prints 2 copies directly — no other app, no dialog.
+//   • Plain website on a tablet: hands off to RawBT.
+//   • Desktop browser: the system print dialog for a USB printer.
 export default function PrintBill({ order, onBack }) {
   const items = (order.items || []).filter((i) => i.quantity > 0);
   const paid = order.payment_status === 'paid';
-  // On the counter tablets/phones the thermal (RawBT) printer is the main
-  // path; only a genuine desktop with a USB printer uses the system dialog.
+  const native = isNativeApp();
+  // Web fallbacks (only used when NOT the installed app).
   const useBluetooth = preferRawBT();
   const [sent, setSent] = useState(false);
+  // Native print status: idle | printing | done | error
+  const [status, setStatus] = useState('idle');
+  const [errorMsg, setErrorMsg] = useState('');
   const notify = useToast();
   const autoFired = useRef(false);
 
-  // One RawBT job containing both copies (records + customer).
-  function sendToPrinter() {
-    printViaRawBT(doubleCopies(buildReceiptBytes(order)));
+  // Both copies (records + customer) in one connect-write-close.
+  function twoCopyBytes() {
+    return doubleCopies(buildReceiptBytes(order));
+  }
+
+  // Direct native print — connects to the paired printer and writes the bytes.
+  async function nativePrint() {
+    setStatus('printing');
+    setErrorMsg('');
+    try {
+      await btPrint(twoCopyBytes());
+      setStatus('done');
+    } catch (err) {
+      setStatus('error');
+      setErrorMsg(err?.message || 'Could not print');
+    }
+  }
+
+  // RawBT hand-off (plain website on a tablet).
+  function rawbtPrint() {
+    printViaRawBT(twoCopyBytes());
     setSent(true);
     notify('Sent to printer', 'success');
   }
 
   useEffect(() => {
-    if (!useBluetooth || autoFired.current) return;
+    if (autoFired.current) return;
     autoFired.current = true;
-    // Let the receipt paint first, then hand off to RawBT. The hand-off
-    // rides the "Generate Bill" tap's activation, so Android allows it.
-    const t = setTimeout(() => {
-      printViaRawBT(doubleCopies(buildReceiptBytes(order)));
-      setSent(true);
-    }, 350);
-    return () => clearTimeout(t);
+    if (native) {
+      nativePrint();
+      return;
+    }
+    if (useBluetooth) {
+      // Let the receipt paint first, then hand off to RawBT.
+      const t = setTimeout(() => {
+        printViaRawBT(twoCopyBytes());
+        setSent(true);
+      }, 350);
+      return () => clearTimeout(t);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const noPrinter = native && !getSelectedPrinter();
 
   return (
     <div className="print-screen">
@@ -71,14 +99,23 @@ export default function PrintBill({ order, onBack }) {
           ← Back
         </button>
 
-        {useBluetooth ? (
-          <>
-            {/* The one main action on a counter device: straight to the
-                Bluetooth thermal printer via RawBT — never the system dialog. */}
-            <button className="btn-primary btn-print-big" onClick={sendToPrinter}>
-              🖨 {sent ? 'Print Again' : 'Print 2 Copies'}
-            </button>
-          </>
+        {native ? (
+          <button
+            className="btn-primary btn-print-big"
+            onClick={nativePrint}
+            disabled={status === 'printing'}
+          >
+            🖨{' '}
+            {status === 'printing'
+              ? 'Printing…'
+              : status === 'done'
+              ? 'Print Again'
+              : 'Print 2 Copies'}
+          </button>
+        ) : useBluetooth ? (
+          <button className="btn-primary btn-print-big" onClick={rawbtPrint}>
+            🖨 {sent ? 'Print Again' : 'Print 2 Copies'}
+          </button>
         ) : (
           <button className="btn-primary btn-print-big" onClick={() => window.print()}>
             🖨 Print
@@ -86,7 +123,25 @@ export default function PrintBill({ order, onBack }) {
         )}
       </div>
 
-      {useBluetooth && sent && (
+      {native && noPrinter && (
+        <div className="print-status error">
+          ⚠ No printer chosen on this device yet. Open Admin &gt; Printer Setup
+          and pick the printer once.
+        </div>
+      )}
+      {native && status === 'printing' && (
+        <div className="print-status connecting">🖨 Printing 2 copies…</div>
+      )}
+      {native && status === 'done' && (
+        <div className="print-status done">✅ Printed 2 copies.</div>
+      )}
+      {native && status === 'error' && (
+        <div className="print-status error">
+          ⚠ {errorMsg}. Switch the printer on, keep it nearby, and tap
+          “Print Again”.
+        </div>
+      )}
+      {!native && useBluetooth && sent && (
         <div className="print-status done">
           ✅ Sent 2 copies to the printer. If nothing came out, switch the
           printer on and tap “Print Again”.

@@ -942,6 +942,43 @@ select {
   color: #fff;
 }
 
+.printer-list {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.printer-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  text-align: left;
+  font-weight: 600;
+  min-height: 48px;
+}
+
+.printer-row.active {
+  border-color: var(--green);
+  background: #e8f5e9;
+}
+
+.printer-row .printer-addr {
+  margin-left: auto;
+  font-size: 12px;
+  color: #888;
+  font-weight: 500;
+}
+
+.printer-row .printer-check {
+  color: var(--green);
+  font-weight: 800;
+}
+
 .spinner-wrap {
   display: flex;
   flex-direction: column;

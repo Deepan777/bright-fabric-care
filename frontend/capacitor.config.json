@@ -1,0 +1,13 @@
+{
+  "appId": "com.brightfabriccare.app",
+  "appName": "The Bright Fabric Care",
+  "webDir": "dist",
+  "server": {
+    "url": "https://brightfabriccare.netlify.app",
+    "cleartext": false,
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
