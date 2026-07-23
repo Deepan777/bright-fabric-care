@@ -1,0 +1,43 @@
+name: Deploy Website (Cloudflare Pages)
+
+# Publishes the web app on every push to main so a normal push is enough —
+# no manual deploy step. Runs on Cloudflare Pages' free tier (moved here
+# after Netlify's free-tier credits ran out mid-month and silently paused
+# deploys). The installed Android app loads this same URL at runtime
+# (see frontend/capacitor.config.json), so this is also what gets the
+# printer/UI fixes onto phones that already have the app installed.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-web.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+      - name: Deploy to Cloudflare Pages
+        working-directory: frontend
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler pages deploy dist --project-name=bright-fabric-care --branch=main --commit-dirty=true

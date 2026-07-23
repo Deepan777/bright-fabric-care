@@ -3,7 +3,7 @@
   "appName": "The Bright Fabric Care",
   "webDir": "dist",
   "server": {
-    "url": "https://brightfabriccare.netlify.app",
+    "url": "https://bright-fabric-care.pages.dev",
     "cleartext": false,
     "androidScheme": "https"
   },
