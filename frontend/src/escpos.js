@@ -61,6 +61,10 @@ export function buildReceiptBytes(order) {
   const boldOff = () => push(ESC, 0x45, 0);
   const doubleOn = () => push(GS, 0x21, 0x11); // double width + height
   const doubleOff = () => push(GS, 0x21, 0x00);
+  // Double height only (width unchanged) — makes the items table rows
+  // taller/easier to read without doubling character width, so the 48-col
+  // padding below still lines up correctly on paper.
+  const heightOn = () => push(GS, 0x21, 0x01);
 
   const line = (s = '') => {
     pushText(s);
@@ -138,17 +142,23 @@ export function buildReceiptBytes(order) {
   divider();
 
   const items = (order.items || []).filter((i) => i.quantity > 0);
+  const totalClothes = items.reduce((s, it) => s + Number(it.quantity), 0);
+  heightOn();
   for (const it of items) {
-    line(
+    bigLine(
       padRight(String(it.quantity), 4) +
         padRight(it.item_name, 24) +
         padLeft(Number(it.rate).toFixed(0), 8) +
         padLeft(Number(it.line_total).toFixed(2), 12)
     );
   }
+  doubleOff();
   divider();
 
   // --- Total ---
+  boldOn();
+  line(`Total Clothes: ${totalClothes}`);
+  boldOff();
   doubleOn();
   boldOn();
   bigLine(`TOTAL  Rs.${Number(order.total_amount).toFixed(2)}`);

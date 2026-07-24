@@ -1152,6 +1152,12 @@ select {
   border-bottom: 1.5px solid #000;
 }
 
+/* Item rows (the entries under Qty/Material/Rate/Amount) — larger than the
+   column headers so the values are easy to read at a glance. */
+.bill table td {
+  font-size: 13pt;
+}
+
 .bill table td.num {
   text-align: center;
 }

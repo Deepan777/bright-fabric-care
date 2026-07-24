@@ -36,6 +36,7 @@ function fmtTime(d) {
 //   • Desktop browser: the system print dialog for a USB printer.
 export default function PrintBill({ order, onBack }) {
   const items = (order.items || []).filter((i) => i.quantity > 0);
+  const totalClothes = items.reduce((s, it) => s + Number(it.quantity), 0);
   const paid = order.payment_status === 'paid';
   const native = isNativeApp();
   // Web fallbacks (only used when NOT the installed app).
@@ -202,6 +203,8 @@ export default function PrintBill({ order, onBack }) {
         </table>
 
         <div className="bill-rule" />
+
+        <div className="bill-field">Total Clothes: {totalClothes}</div>
 
         <div className="total-line">
           <span>Total</span>
