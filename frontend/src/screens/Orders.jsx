@@ -13,10 +13,18 @@ const FILTERS = [
   'All', 'Shop', 'Block', 'Pending', 'Ready', 'Delivered', 'Unpaid',
 ];
 
+// Date + time (not date-only) so workers/admin can see exactly when each
+// bill was created, not just which day.
 function fmtDate(d) {
   if (!d) return '';
   try {
-    return new Date(d).toLocaleDateString('en-GB');
+    return new Date(d).toLocaleString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   } catch {
     return d;
   }
