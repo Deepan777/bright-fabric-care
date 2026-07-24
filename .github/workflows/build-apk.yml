@@ -43,6 +43,8 @@ jobs:
 
       - name: Build web assets
         working-directory: frontend
+        env:
+          VITE_API_URL: https://bright-fabric-care-api.onrender.com
         run: npm run build
 
       - name: Sync Capacitor (Android)
