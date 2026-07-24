@@ -147,6 +147,65 @@ router.patch('/:id/payment', async (req, res) => {
   }
 });
 
+// DELETE /api/orders — bulk delete (admin-only feature, gated by the PIN
+// wall in the app's Admin screen). Uses the same filters as GET so it
+// deletes exactly what the admin is looking at (a day/month/year, a
+// source, or both). Refuses to run with zero filters unless all=true is
+// passed explicitly, so a request that forgot its filters can't wipe the
+// whole table by accident.
+router.delete('/', async (req, res) => {
+  try {
+    const { source, status, payment, date, month, year, search, all } = req.query;
+    const clauses = [];
+    const params = [];
+
+    if (source) {
+      params.push(source);
+      clauses.push(`source = $${params.length}`);
+    }
+    if (status) {
+      params.push(status);
+      clauses.push(`order_status = $${params.length}`);
+    }
+    if (payment) {
+      params.push(payment);
+      clauses.push(`payment_status = $${params.length}`);
+    }
+    if (date) {
+      params.push(date);
+      clauses.push(`created_at::date = $${params.length}`);
+    }
+    if (month) {
+      params.push(month);
+      clauses.push(`to_char(created_at, 'YYYY-MM') = $${params.length}`);
+    }
+    if (year) {
+      params.push(year);
+      clauses.push(`extract(year from created_at) = $${params.length}::int`);
+    }
+    if (search) {
+      params.push(`%${search}%`);
+      const p = `$${params.length}`;
+      clauses.push(
+        `(customer_name ILIKE ${p} OR block ILIKE ${p} OR mobile ILIKE ${p} OR bill_number ILIKE ${p})`
+      );
+    }
+
+    if (clauses.length === 0 && all !== 'true') {
+      return res.status(400).json({
+        error: 'Refusing to delete with no filters — pass all=true to delete every bill',
+      });
+    }
+
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+    const { rowCount } = await query(`DELETE FROM orders ${where}`, params);
+    res.json({ ok: true, count: rowCount });
+  } catch (err) {
+    console.error('bulk delete orders error', err);
+    res.status(500).json({ error: 'server error' });
+  }
+});
+
 // DELETE /api/orders/:id — permanently delete a bill (and its line items).
 router.delete('/:id', async (req, res) => {
   try {

@@ -76,6 +76,14 @@ export const api = {
       body: JSON.stringify({ payment_status, payment_method }),
     }),
   deleteOrder: (id) => request(`/api/orders/${id}`, { method: 'DELETE' }),
+  // Bulk delete — admin-only, used by Admin > Bill Summary to wipe an
+  // entire day/month/year/source (or everything, with all: 'true').
+  deleteOrders: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v)
+    ).toString();
+    return request(`/api/orders${qs ? `?${qs}` : ''}`, { method: 'DELETE' });
+  },
 
   getDashboard: () => request('/api/dashboard'),
   syncOrders: (orders) =>

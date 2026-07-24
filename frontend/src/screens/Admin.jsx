@@ -8,6 +8,7 @@ import {
   cacheSettings,
   getLastFetched,
   removeCachedOrder,
+  removeCachedOrders,
   getCachedCloudOrders,
 } from '../db.js';
 import { loadSettings, loadDashboard, forceRefreshAll } from '../dataSync.js';
@@ -121,6 +122,8 @@ export default function Admin({ items, onItemsChanged }) {
   const [summaryOffline, setSummaryOffline] = useState(false);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [confirmDeleteOrder, setConfirmDeleteOrder] = useState(null);
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
   const [dataRefreshedAt, setDataRefreshedAt] = useState(null);
   const [refreshingAll, setRefreshingAll] = useState(false);
   const [printMode, setPrintModeState] = useState(getPrintMode());
@@ -349,6 +352,39 @@ export default function Admin({ items, onItemsChanged }) {
       setSummaryOrders((list) => list.filter((o) => o.id !== order.id));
     } catch (err) {
       notify(err.message || 'Delete failed', 'error');
+    }
+  }
+
+  // The bills currently visible in the table below (period + source
+  // filter applied) — what "Delete All Shown Bills" acts on.
+  const shownSummaryOrders = (summaryOrders || []).filter(
+    (o) => summarySource === 'all' || o.source === summarySource
+  );
+
+  // Bulk delete — everything currently shown in the Bills table. Mirrors
+  // the exact same filters server-side (period + source) rather than
+  // deleting by id one at a time, so it works correctly no matter how many
+  // bills match. Admin-only by virtue of living behind the Admin PIN wall.
+  async function deleteAllShown() {
+    setDeletingAll(true);
+    try {
+      const params = {};
+      if (summaryMode === 'day') params.date = summaryDate;
+      if (summaryMode === 'month') params.month = summaryMonth;
+      if (summaryMode === 'year') params.year = summaryYear;
+      if (summarySource !== 'all') params.source = summarySource;
+      if (Object.keys(params).length === 0) params.all = 'true';
+
+      const result = await api.deleteOrders(params);
+      const ids = shownSummaryOrders.map((o) => o.id);
+      await removeCachedOrders(ids);
+      setSummaryOrders((list) => list.filter((o) => !ids.includes(o.id)));
+      notify(`Deleted ${result.count} bill(s)`, 'success');
+      setConfirmDeleteAll(false);
+    } catch (err) {
+      notify(err.message || 'Bulk delete failed', 'error');
+    } finally {
+      setDeletingAll(false);
     }
   }
 
@@ -693,6 +729,7 @@ export default function Admin({ items, onItemsChanged }) {
             <option value="day">By Day</option>
             <option value="month">By Month</option>
             <option value="year">By Year</option>
+            <option value="all">All Time</option>
           </select>
           {summaryMode === 'day' && (
             <input
@@ -767,16 +804,27 @@ export default function Admin({ items, onItemsChanged }) {
               </table>
             </div>
 
-            <div className="section-title-row" style={{ marginTop: 18, marginBottom: 10 }}>
+            <div className="section-title-row" style={{ marginTop: 18, marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
               <span style={{ fontWeight: 700, color: 'var(--navy)' }}>Bills</span>
-              <select
-                value={summarySource}
-                onChange={(e) => setSummarySource(e.target.value)}
-              >
-                <option value="all">All Sources</option>
-                <option value="shop">Shop Counter only</option>
-                <option value="block_collection">Block Collection only</option>
-              </select>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <select
+                  value={summarySource}
+                  onChange={(e) => setSummarySource(e.target.value)}
+                >
+                  <option value="all">All Sources</option>
+                  <option value="shop">Shop Counter only</option>
+                  <option value="block_collection">Block Collection only</option>
+                </select>
+                <button
+                  className="btn-danger"
+                  style={{ width: 'auto', padding: '8px 14px', minHeight: 36 }}
+                  onClick={() => setConfirmDeleteAll(true)}
+                  disabled={summaryOffline || shownSummaryOrders.length === 0}
+                  title={summaryOffline ? 'Reconnect to delete bills' : ''}
+                >
+                  🗑 Delete All Shown Bills
+                </button>
+              </div>
             </div>
 
             <div className="table-scroll">
@@ -912,6 +960,45 @@ export default function Admin({ items, onItemsChanged }) {
                 onClick={() => deleteOrder(confirmDeleteOrder)}
               >
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete ALL shown bills confirmation — bulk, admin-only */}
+      {confirmDeleteAll && (
+        <div className="modal-overlay" onClick={() => !deletingAll && setConfirmDeleteAll(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Delete {shownSummaryOrders.length} bill(s)?</h3>
+            <p>
+              This permanently deletes every bill currently shown —{' '}
+              {summaryMode === 'day' && `for ${summaryDate}`}
+              {summaryMode === 'month' && `for ${summaryMonth}`}
+              {summaryMode === 'year' && `for ${summaryYear}`}
+              {summaryMode === 'all' && 'across all time'}
+              {summarySource !== 'all' &&
+                (summarySource === 'shop' ? ', Shop Counter only' : ', Block Collection only')}
+              . Total value: ₹
+              {shownSummaryOrders
+                .reduce((s, o) => s + Number(o.total_amount), 0)
+                .toFixed(0)}
+              . This cannot be undone.
+            </p>
+            <div className="modal-actions">
+              <button
+                className="btn-secondary"
+                onClick={() => setConfirmDeleteAll(false)}
+                disabled={deletingAll}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn-danger"
+                onClick={deleteAllShown}
+                disabled={deletingAll}
+              >
+                {deletingAll ? 'Deleting…' : `Delete ${shownSummaryOrders.length} Bill(s)`}
               </button>
             </div>
           </div>

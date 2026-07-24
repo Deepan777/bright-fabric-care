@@ -156,6 +156,16 @@ export async function removeCachedOrder(id) {
   return updated;
 }
 
+// Bulk version — one read-modify-write instead of N, for Admin's
+// delete-all-shown-bills action.
+export async function removeCachedOrders(ids) {
+  const idSet = new Set(ids);
+  const cached = await getCachedCloudOrders();
+  const updated = cached.filter((o) => !idSet.has(o.id));
+  await setMeta('cache_cloud_orders', updated);
+  return updated;
+}
+
 export async function cacheDashboard(data) {
   await setMeta('cache_dashboard', data);
   await setLastFetched('dashboard');
