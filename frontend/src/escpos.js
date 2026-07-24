@@ -11,10 +11,10 @@ const LF = 0x0a;
 const COLS = 48; // normal font columns on 80mm paper
 const COLS_WIDE = 24; // columns when double-width is on
 
-// Target minimum receipt length: 6 inches. A normal text line advances the
-// paper ~30/203 inch, so ~41 normal lines ≈ 6in. Double-height lines count
+// Target minimum receipt length: 8 inches. A normal text line advances the
+// paper ~30/203 inch, so ~54 normal lines ≈ 8in. Double-height lines count
 // as 2 units.
-const MIN_LINE_UNITS = 41;
+const MIN_LINE_UNITS = 54;
 
 function ascii(value) {
   return String(value ?? '')
