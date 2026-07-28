@@ -113,7 +113,7 @@ export default function App() {
         />
       )}
       {effectiveTab === 'orders' && (
-        <Orders onReprint={(order) => setPrintOrder(order)} />
+        <Orders isAdmin={isAdmin} onReprint={(order) => setPrintOrder(order)} />
       )}
       {effectiveTab === 'dashboard' && isAdmin && <Dashboard />}
       {effectiveTab === 'admin' && (

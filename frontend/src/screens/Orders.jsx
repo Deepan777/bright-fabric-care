@@ -52,6 +52,32 @@ function dateKeyOf(d) {
   }
 }
 
+function monthKeyOf(d) {
+  if (!d) return 'unknown';
+  try {
+    return new Date(d).toISOString().slice(0, 7);
+  } catch {
+    return 'unknown';
+  }
+}
+
+function yearKeyOf(d) {
+  if (!d) return 'unknown';
+  try {
+    return new Date(d).toISOString().slice(0, 4);
+  } catch {
+    return 'unknown';
+  }
+}
+
+// Sums the paid total for one payment method within a set of orders — the
+// building block for the Cash/UPI figures shown per day, month, and year.
+function paidTotalByMethod(list, method) {
+  return list
+    .filter((o) => o.payment_status === 'paid' && o.payment_method === method)
+    .reduce((s, o) => s + Number(o.total_amount), 0);
+}
+
 // "Today · Tue, 21 Jul 2026" / "Yesterday · Mon, 20 Jul 2026" / plain date
 // for anything older — makes it obvious at a glance which day you're
 // looking at without doing date math in your head.
@@ -85,7 +111,7 @@ function mergeOrders(cloud, local) {
   );
 }
 
-export default function Orders({ onReprint }) {
+export default function Orders({ isAdmin, onReprint }) {
   const [orders, setOrders] = useState([]);
   const [filter, setFilter] = useState('All');
   const [search, setSearch] = useState('');
@@ -232,8 +258,27 @@ export default function Orders({ onReprint }) {
       outstanding: list
         .filter((o) => o.payment_status === 'unpaid')
         .reduce((s, o) => s + Number(o.total_amount), 0),
+      cash: paidTotalByMethod(list, 'cash'),
+      upi: paidTotalByMethod(list, 'upi'),
     }));
   }, [filtered]);
+
+  // Cash vs UPI collected today / this month / this year — always computed
+  // from every order regardless of the active filter/search, since these
+  // are reconciliation figures and shouldn't quietly hide money.
+  const paymentTotals = useMemo(() => {
+    const todayKey = todayKeyStr();
+    const monthKey = todayKey.slice(0, 7);
+    const yearKey = todayKey.slice(0, 4);
+    const today = orders.filter((o) => dateKeyOf(o.created_at) === todayKey);
+    const month = orders.filter((o) => monthKeyOf(o.created_at) === monthKey);
+    const year = orders.filter((o) => yearKeyOf(o.created_at) === yearKey);
+    return {
+      today: { cash: paidTotalByMethod(today, 'cash'), upi: paidTotalByMethod(today, 'upi') },
+      month: { cash: paidTotalByMethod(month, 'cash'), upi: paidTotalByMethod(month, 'upi') },
+      year: { cash: paidTotalByMethod(year, 'cash'), upi: paidTotalByMethod(year, 'upi') },
+    };
+  }, [orders]);
 
   // Status/payment changes patch the cache + on-screen list directly the
   // instant the server confirms them — no need to wait for the next
@@ -305,6 +350,34 @@ export default function Orders({ onReprint }) {
         </div>
       </div>
 
+      <div className="split-row">
+        <div className="split-card">
+          <div className="label">Today</div>
+          <div className="split-card-rows">
+            <span className="cash">Cash <b>₹{paymentTotals.today.cash.toFixed(0)}</b></span>
+            <span className="upi">UPI <b>₹{paymentTotals.today.upi.toFixed(0)}</b></span>
+          </div>
+        </div>
+        {isAdmin && (
+          <>
+            <div className="split-card">
+              <div className="label">This Month</div>
+              <div className="split-card-rows">
+                <span className="cash">Cash <b>₹{paymentTotals.month.cash.toFixed(0)}</b></span>
+                <span className="upi">UPI <b>₹{paymentTotals.month.upi.toFixed(0)}</b></span>
+              </div>
+            </div>
+            <div className="split-card">
+              <div className="label">This Year</div>
+              <div className="split-card-rows">
+                <span className="cash">Cash <b>₹{paymentTotals.year.cash.toFixed(0)}</b></span>
+                <span className="upi">UPI <b>₹{paymentTotals.year.upi.toFixed(0)}</b></span>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
       <div className="filter-tabs">
         {FILTERS.map((f) => (
           <button
@@ -340,6 +413,7 @@ export default function Orders({ onReprint }) {
                   ? ` (${g.shopBills} Shop / ${g.blockBills} Block)`
                   : ''}
                 {' · '}₹{g.revenue.toFixed(0)} collected
+                {g.revenue > 0 ? ` (₹${g.cash.toFixed(0)} cash / ₹${g.upi.toFixed(0)} UPI)` : ''}
                 {g.outstanding > 0 ? ` · ₹${g.outstanding.toFixed(0)} due` : ''}
               </span>
               <span className="day-toggle">{isCollapsed ? '▸' : '▾'}</span>
