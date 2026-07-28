@@ -170,6 +170,11 @@ export function buildReceiptBytes(order) {
   alignCenter();
   line('Thank You! Visit again.');
   line('For The Bright Fabric Care');
+  divider();
+  line('Check laundry status:');
+  boldOn();
+  line('bright-fabric-care.pages.dev/track');
+  boldOff();
 
   // Pad the receipt to the 8-inch minimum length.
   while (lineUnits < MIN_LINE_UNITS) {

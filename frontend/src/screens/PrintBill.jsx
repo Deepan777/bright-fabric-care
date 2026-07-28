@@ -219,6 +219,13 @@ export default function PrintBill({ order, onBack }) {
           <div>Thank You! Visit again.</div>
           <div>For The Bright Fabric Care</div>
         </div>
+
+        <div className="bill-rule" />
+
+        <div className="footer">
+          <div>Check laundry status:</div>
+          <div style={{ fontWeight: 700 }}>bright-fabric-care.pages.dev/track</div>
+        </div>
       </div>
     </div>
   );
