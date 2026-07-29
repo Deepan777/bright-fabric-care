@@ -26,7 +26,7 @@ function fmtTime(d) {
 }
 
 // 80mm thermal receipt layout. Block/Room No are enlarged since workers
-// scan them at a glance, and the bill always prints at least 8 inches long
+// scan them at a glance, and the bill always prints at least 6 inches long
 // regardless of item count — see .bill-spacer / min-height in styles.css.
 //
 // Printing path:

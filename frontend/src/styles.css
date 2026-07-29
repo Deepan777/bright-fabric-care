@@ -1053,7 +1053,7 @@ select {
    Target hardware: Helett BillQuick Lite USB thermal receipt printer,
    80mm roll, autocut. 72mm is used for content width to stay clear of
    the printer's unprintable side margins. The receipt is always at
-   least 8 inches long (a flex spacer fills any extra space when there
+   least 6 inches long (a flex spacer fills any extra space when there
    are few items) and grows taller automatically for larger orders. */
 .print-screen {
   padding: 16px;
@@ -1092,7 +1092,7 @@ select {
 
 .bill {
   width: 72mm;
-  min-height: 8in;
+  min-height: 6in;
   padding: 4mm 3mm 6mm;
   background: #fff;
   color: #000;
@@ -1223,7 +1223,7 @@ select {
     top: 0;
     left: 0;
     width: 72mm;
-    min-height: 8in;
+    min-height: 6in;
   }
 
   .header,
